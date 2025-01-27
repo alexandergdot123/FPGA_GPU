@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project is a 24-core, 32-thread GPU designed for the Spartan-7 FPGA (xcs50-csga324-1). It is optimized for integer matrix multiplication and sprite copying to a frame buffer. The GPU employs a SIMD architecture and is designed to maximize the LUT capacity of the FPGA. This project was developed as part of my ECE 385 final project.
+This project is a 24-core, 32-thread GPU designed for the Spartan-7 FPGA (xcs50-csga324-1). It is optimized for integer matrix multiplication and sprite copying to a frame buffer. The GPU employs a SIMD architecture and is designed to maximize the LUT capacity of the FPGA. This project was developed as part of my ECE 385 final project. The MicroBlaze and the alexIP block run at 100MHz, while the memory subsystem runs at 200MHz.
 
 ## Features
 
