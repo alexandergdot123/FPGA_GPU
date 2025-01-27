@@ -1,30 +1,30 @@
 module globalMemoryCache(
-    input logic [31:0] writingMemoryDataGlobal,
-    output logic [31:0] finishedWritingMemoryDataGlobal,
-    input logic [31:0] readingMemoryDataGlobal,
-    output logic [31:0] finishedReadingMemoryDataGlobal, 
+    input logic [31:0] writingMemoryDataGlobal, //the status of each core and whether it is writing memory data
+    output logic [31:0] finishedWritingMemoryDataGlobal, //the values to tell each core whether it was finished writing its data
+    input logic [31:0] readingMemoryDataGlobal, //the status of each core and whether it is reading memory data
+    output logic [31:0] finishedReadingMemoryDataGlobal,  //the values to tell each core whether it was finished reading memory data
     input logic reset,
     input logic clk,
-    input logic [1023:0] writeData,
-    input logic [1023:0] mar,
-    output logic [1023:0] dataOut,
-    input logic globalMemFinishedAction,
-    output logic [25:0] globalMemAddr,
-    output logic [127:0] globalMemDataWrite,
-    input logic [127:0] globalMemRead,
-    output logic [7:0] globalMemoryWriteByteEnable,
-    output logic globalEnable,
-    output logic globalWriteEnable
+    input logic [1023:0] writeData, //the data to write from the cores
+    input logic [1023:0] mar, //the memory addresses for each core
+    output logic [1023:0] dataOut, //the data read from the memory for each core
+    input logic globalMemFinishedAction, //whether the ddr3 has finished a transacction
+    output logic [25:0] globalMemAddr, //the ddr3 address
+    output logic [127:0] globalMemDataWrite, //the data to write from the cores
+    input logic [127:0] globalMemRead, //the data read from the memory
+    output logic [7:0] globalMemoryWriteByteEnable, //Whether to write each byte, depending on whether a core is active
+    output logic globalEnable, //whether to activate the memory for a transaction
+    output logic globalWriteEnable //whether a memory transaction is a read or a write
 );
-    import gpuCoreTypes::*; // Import the package
+    import gpuCoreTypes::*; // Import the package of memory cache states
     
     memState state;
     
-    function memState getMemState();
+    function memState getMemState(); //for simulation purposes
         return state;
     endfunction
     
-    logic [30:0] adjacencyChecker;
+    logic [30:0] adjacencyChecker; // whether each address is adjacent to its neighboring address (should be increasing)
     
     
     logic [4:0] nonAdjacentCounter, nonAdjacentCounterPlusOne;
@@ -32,31 +32,31 @@ module globalMemoryCache(
     logic [2:0] adjacentOffAxisWriteCounter, adjacentOffAxisWriteCounterPlusOne;
     logic cacheHitBit;
 
-    (* MARK_DEBUG = "TRUE" *) logic [2:0] adjacentCounterDebug;
+    (* MARK_DEBUG = "TRUE" *) logic [2:0] adjacentCounterDebug; //should be optimized away during implementation
     assign adjacentCounterDebug = adjacentCounter;
 
 
 
 
-    logic [31:0] masterMar;
-    logic [127:0] nonAdjacentMasterDataIn;
+    logic [31:0] masterMar; //the memory address to either search the cache or the ddr3
+    logic [127:0] nonAdjacentMasterDataIn; 
     logic [127:0] masterDataIn;
 
-    logic [127:0] globalMemReadRegister;
+    logic [127:0] globalMemReadRegister; //the register saving the value of the ddr3 read
 
-    logic [127:0] dataBramOut, dataBramIn;
+    logic [127:0] dataBramOut, dataBramIn; // inputs and output for the cache data
 
-    logic [15:0] bramHeaderDataIn, bramHeaderDataOut;
-    logic [10:0] bramHeaderAddress;
+    logic [15:0] bramHeaderDataIn, bramHeaderDataOut; //inputs and outputs for the cache tags
+    logic [10:0] bramHeaderAddress; //the hashed value of the bram
 
-    logic [3:0] dataBramIndividualEnable, dataBramSegmentsOn;
+    logic [3:0] dataBramIndividualEnable, dataBramSegmentsOn; //whether to enable each cache data bram to allow for writing in 32-bit segments only
 
-    logic [1:0] lateMarBits;
+    logic [1:0] lateMarBits; //the first two bits of core 0's memory address. This means the system breaks if core 0 does not write but other cores do.
 
-    logic [3:0] globalMemoryWriteByteEnableConcatenated;
+    logic [3:0] globalMemoryWriteByteEnableConcatenated; //I only allow cores to write in 32-bit segments.
 
-    logic [10:0] resetHeaderBramCounter;
-
+    logic [10:0] resetHeaderBramCounter; //to reset the header bram to all xFFFFs upon reset. This prevents the cache from holding bad data.
+    
     logic headerBramEnable, headerBramWriteEnable, dataBramEnable, dataBramWriteEnable, loadDataBramFromGlobal;
     logic loadGlobalMemReadRegister, globalMemFinishedActionReg;
     always_ff @(posedge clk) begin
@@ -72,50 +72,57 @@ module globalMemoryCache(
             globalMemoryWriteByteEnableConcatenated <= 0;
         end
         else begin
-            globalMemFinishedActionReg <= globalMemFinishedAction; 
-            if(resetHeaderBramCounter != 11'h7FF) begin
+            globalMemFinishedActionReg <= globalMemFinishedAction; //I pipelined this because the signal does not propogate far enough otherwise 
+            if(resetHeaderBramCounter != 11'h7FF) begin //increment resetHeaderBramCounter until it reaches all 1's
                 resetHeaderBramCounter <= resetHeaderBramCounter + 1;
             end
 
-            case(state)
-                Idle: state <= (|writingMemoryDataGlobal) ? adjacentCheckWrite : ((|readingMemoryDataGlobal) ? adjacentCheckRead : Idle);
+            case(state) //state transitions
+                Idle: state <= (|writingMemoryDataGlobal) ? adjacentCheckWrite : ((|readingMemoryDataGlobal) ? adjacentCheckRead : Idle); //If idle, next decide whether to read or write
 
-                //which state to go into
+                //If it's a read, decide whether it is adjacent - if it is, decide whether it is on an even axis or the first and last reads should be treated specially
                 adjacentCheckRead: state <= (&adjacencyChecker) ? ((mar[1:0] == 2'b00) ? adjacentReadRegularLoadMasters : adjacentReadOffAxisFirstLoadMasters) : nonAdjacentReadLoadMasters;
+                //If it's a write, decide whether it is adjacent - if it is, decide whether it is on an even axis or the first and last writes should be treated specially
                 adjacentCheckWrite: state <= (&adjacencyChecker) ? ((mar[1:0] == 2'b00) ? adjacentWriteRegularLoadMasters : adjacentWriteOffAxisFirstLoadMasters) : nonAdjacentWriteLoadMasters;
 
-                //reading off axis data. The first non-aligned data read.
-                adjacentReadOffAxisFirstLoadMasters: state <= adjacentReadOffAxisFirstSearchHeader1;
-                adjacentReadOffAxisFirstSearchHeader1: state <= adjacentReadOffAxisFirstCheckHit; // changing
-                adjacentReadOffAxisFirstSearchHeader2: state <= adjacentReadOffAxisFirstCheckHit;
+                //reading off-axis data. The first read not-aligned with the ddr3 addressability 4 times larger than the core size (128 bits)
+                adjacentReadOffAxisFirstLoadMasters: state <= adjacentReadOffAxisFirstSearchHeader1; //load the master address
+                adjacentReadOffAxisFirstSearchHeader1: state <= adjacentReadOffAxisFirstCheckHit; // check whether the value is in cache (search the tag)
+                adjacentReadOffAxisFirstSearchHeader2: state <= adjacentReadOffAxisFirstCheckHit; //should never reach.
+                //if the tag matches, we call it a "cache hit." Branch accordingly.
                 adjacentReadOffAxisFirstCheckHit: state <= (cacheHitBit) ? adjacentReadOffAxisFirstCacheHitDistributeData : adjacentReadOffAxisFirstCacheMissGlobalRead1;
-                adjacentReadOffAxisFirstCacheHitDistributeData: state <= adjacentReadRegularLoadMasters;
-                adjacentReadOffAxisFirstCacheMissGlobalRead1: state <= adjacentReadOffAxisFirstCacheMissGlobalRead2;
+                adjacentReadOffAxisFirstCacheHitDistributeData: state <= adjacentReadRegularLoadMasters; //if it was a cache hit, tell the cores it was a hit, and send the read data to the cores.
+                adjacentReadOffAxisFirstCacheMissGlobalRead1: state <= adjacentReadOffAxisFirstCacheMissGlobalRead2; //if it was a miss, send the ddr3 the data request
+                //Then, wait until the ddr3 comes back with a response.
                 adjacentReadOffAxisFirstCacheMissGlobalRead2: state <= (globalMemFinishedActionReg) ? adjacentReadOffAxisFirstCacheMissDistributeData : adjacentReadOffAxisFirstCacheMissGlobalRead2;
-                adjacentReadOffAxisFirstCacheMissDistributeData: state <= adjacentReadRegularLoadMasters;
+                adjacentReadOffAxisFirstCacheMissDistributeData: state <= adjacentReadRegularLoadMasters; //send the cores the data, and send the cache the read data too.
 
-                //Occurs 8 times. The last time it occurs, I need to have special care for reading off axis data.
-                adjacentReadRegularLoadMasters: state <= adjacentReadRegularSearchHeader1;
-                adjacentReadRegularSearchHeader1: state <= adjacentReadRegularCheckHit; //changing
-                adjacentReadRegularSearchHeader2: state <= adjacentReadRegularCheckHit;
+                //Occurs 6 times.
+                adjacentReadRegularLoadMasters: state <= adjacentReadRegularSearchHeader1; // load the master Memory address register with the correct address
+                adjacentReadRegularSearchHeader1: state <= adjacentReadRegularCheckHit; //send the cache tag BRAM the address to search whether the data is in the cache
+                adjacentReadRegularSearchHeader2: state <= adjacentReadRegularCheckHit; //should be unreachable
+                //if the tag matches, we call it a "cache hit." Branch accordingly.
                 adjacentReadRegularCheckHit: state <= (cacheHitBit) ? adjacentReadRegularCacheHitDistributeData : adjacentReadRegularCacheMissGlobalRead1;
+                //If the cache was a hit, distribute the data to the cores. Also, if it is the 6th read (24 cores / 4 cores per read), return to idle state
                 adjacentReadRegularCacheHitDistributeData: state <= (adjacentCounter==3'b101) ? Idle : adjacentReadRegularLoadMasters;
-                adjacentReadRegularCacheMissGlobalRead1: state <= adjacentReadRegularCacheMissGlobalRead2;
-                adjacentReadRegularCacheMissGlobalRead2: state <= (globalMemFinishedActionReg) ? adjacentReadRegularCacheMissDistributeData : adjacentReadRegularCacheMissGlobalRead2;
-                adjacentReadRegularCacheMissDistributeData: state <= (adjacentCounter==3'b101) ? Idle : adjacentReadRegularLoadMasters;
+                adjacentReadRegularCacheMissGlobalRead1: state <= adjacentReadRegularCacheMissGlobalRead2; //If it was a miss, send the command to the ddr3
+                adjacentReadRegularCacheMissGlobalRead2: state <= (globalMemFinishedActionReg) ? adjacentReadRegularCacheMissDistributeData : adjacentReadRegularCacheMissGlobalRead2; //wait for the ddr3 to finish
+                adjacentReadRegularCacheMissDistributeData: state <= (adjacentCounter==3'b101) ? Idle : adjacentReadRegularLoadMasters; //when finished, distribute read data, and if it's the 6th read, return to idle state.
 
-                //Non adjacent reads. Loops 32 times.
-                nonAdjacentReadLoadMasters: state <= nonAdjacentReadSearchHeader1;
-                nonAdjacentReadSearchHeader1: state <= nonAdjacentReadCheckHit; //changing
-                nonAdjacentReadSearchHeader2: state <= nonAdjacentReadCheckHit;
-                nonAdjacentReadCheckHit: state <= (cacheHitBit) ? nonAdjacentReadCacheHitDistributeData : nonAdjacentReadCacheMissGlobalRead1;
-                nonAdjacentReadCacheHitDistributeData: state <= ((nonAdjacentCounter == 5'b10111) || ~(|readingMemoryDataGlobal)) ? Idle : nonAdjacentReadLoadMasters;
-                nonAdjacentReadCacheMissGlobalRead1: state <= nonAdjacentReadCacheMissGlobalRead2;
-                nonAdjacentReadCacheMissGlobalRead2: state <= (globalMemFinishedActionReg) ? nonAdjacentReadCacheMissDistributeData : nonAdjacentReadCacheMissGlobalRead2;
+                //Non adjacent reads. Loops 24 times, one for each core
+                nonAdjacentReadLoadMasters: state <= nonAdjacentReadSearchHeader1; //load the master memory address register with the correct address
+                nonAdjacentReadSearchHeader1: state <= nonAdjacentReadCheckHit; //send the address to the cache tag bram, searching whether the data is present
+                nonAdjacentReadSearchHeader2: state <= nonAdjacentReadCheckHit; //should never happen, unreachable
+                nonAdjacentReadCheckHit: state <= (cacheHitBit) ? nonAdjacentReadCacheHitDistributeData : nonAdjacentReadCacheMissGlobalRead1; //branch whether the data is in cache or not
+                //If the data is present in cache, distribute it the cores. Only do another read if there are more reads requested by the cores.
+                nonAdjacentReadCacheHitDistributeData: state <= ((nonAdjacentCounter == 5'b10111) || ~(|readingMemoryDataGlobal)) ? Idle : nonAdjacentReadLoadMasters; 
+                nonAdjacentReadCacheMissGlobalRead1: state <= nonAdjacentReadCacheMissGlobalRead2; //if cache miss, send data request to the ddr3
+                nonAdjacentReadCacheMissGlobalRead2: state <= (globalMemFinishedActionReg) ? nonAdjacentReadCacheMissDistributeData : nonAdjacentReadCacheMissGlobalRead2; //when the ddr3 responds, distribute the data after
+                //When the data has been read by the ddr3, write it to the cache, and send it to the cores. Continue reading for next cycle if there are more cores requesting data
                 nonAdjacentReadCacheMissDistributeData: state <= ((nonAdjacentCounter == 5'b10111 )|| ~(|readingMemoryDataGlobal)) ? Idle : nonAdjacentReadLoadMasters;
 
                 //Adjacent, off axis writes
-                adjacentWriteOffAxisFirstLoadMasters: state <= adjacentWriteOffAxisFirstSearchHeader;
+                adjacentWriteOffAxisFirstLoadMasters: state <= adjacentWriteOffAxisFirstSearchHeader; 
                 adjacentWriteOffAxisFirstSearchHeader: state <= adjacentWriteOffAxisFirstCheckHit; //changing
                 adjacentWriteOffAxisFirstCheckHit: state <= (cacheHitBit) ? adjacentWriteOffAxisFirstPartialWrite : adjacentWriteOffAxisFirstOnlyGlobal;
                 adjacentWriteOffAxisFirstPartialWrite: state <= adjacentWriteOffAxisFirstGlobalWait;
