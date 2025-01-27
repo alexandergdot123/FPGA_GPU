@@ -9,19 +9,10 @@ module alexIP_v1_0 #
     parameter integer C_AXI_ADDR_WIDTH	= 16
 )
 (
-    // Users to add ports here
-//    input logic clock_100MHZ,
-//    input logic resetAH,
 
-
-//    output logic hdmi_clk_n,
-//    output logic hdmi_clk_p,
-//    output logic [2:0] hdmi_tx_n,
-//    output logic [2:0] hdmi_tx_p,
     input logic [9:0] drawX,
     input logic [9:0] drawY,
-    // User ports ends
-    
+   
     
     // Do not modify the ports beyond this line
     // Ports of Axi Slave Bus Interface AXI
@@ -47,28 +38,6 @@ module alexIP_v1_0 #
     output logic  axi_rvalid,
     input logic  axi_rready,
     
-    //ddr3 here
-//    input logic sys_clk_n,
-//    input logic sys_clk_p,
-//    output logic [12:0] ddr3_addr,
-//    output logic [2:0] ddr3_ba,
-//    output logic ddr3_cas_n,
-//    output logic ddr3_ck_n,
-//    output logic ddr3_ck_p,
-//    output logic ddr3_cke,
-//    output logic [1:0] ddr3_dm,
-//    inout wire [15:0] ddr3_dq,
-//    inout wire [1:0] ddr3_dqs_n,
-//    inout wire [1:0] ddr3_dqs_p,
-//    output logic ddr3_odt,
-//    output logic ddr3_ras_n,
-//    output logic ddr3_reset_n,
-//    output logic ddr3_we_n,
-////    input logic clk_ref_i,
-////    input logic sys_rst,
-//    output logic        ram_init_error,
-//    output logic        ram_init_done,
-
     output logic [26:0] alexAddress,
     output logic [127:0] alexWriteData,
     input logic [127:0] alexReadData,
@@ -76,36 +45,16 @@ module alexIP_v1_0 #
     output logic alexMemWriteEnable,
     output logic [7:0] alexWriteBytes,
     input logic alexFinishedAction
-
-    
-    //sd card
-//    output logic sd_sclk,
-//    output logic sd_mosi,
-//    output logic sd_cs,
-//    output logic sd_miso
     
 );
 
 
-//logic [26:0] alexAddress;
-//logic [127:0] alexWriteData;
-//logic [127:0] alexReadData;
-//logic alexMemEnable;
-//logic alexMemWriteEnable;
-//logic [7:0] alexWriteBytes;
-//logic alexFinishedAction;
-
-
-//additional logic variables as necessary to support VGA, and HDMI modules.
 // Instantiation of Axi Bus Interface AXI
 hdmi_text_controller_v1_0_AXI # ( 
     .C_S_AXI_DATA_WIDTH(C_AXI_DATA_WIDTH),
     .C_S_AXI_ADDR_WIDTH(C_AXI_ADDR_WIDTH)
 ) hdmi_text_controller_v1_0_AXI_inst (
-
-
-
-
+    //this is the memory action bus
     .alexAddress(alexAddress),
     .alexWriteData(alexWriteData),
     .alexReadData(alexReadData),
@@ -114,11 +63,7 @@ hdmi_text_controller_v1_0_AXI # (
     .alexWriteBytes(alexWriteBytes),
     .alexFinishedAction(alexFinishedAction),
 
-//    .hdmi_clk_n(hdmi_clk_n),
-//    .hdmi_clk_p(hdmi_clk_p),
-//    .hdmi_tx_n(hdmi_tx_n),
-//    .hdmi_tx_p(hdmi_tx_p),
-    .drawX(drawX),
+    .drawX(drawX), //used so that the microBlaze can read what the current drawX and drawY values are
     .drawY(drawY),
 
     //don't modify below this!
