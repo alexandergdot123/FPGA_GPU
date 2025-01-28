@@ -190,7 +190,7 @@ module globalMemoryCache(
                 masterMar <= mar[31:0]; //on adjacent off-axis reads, the first core begins first
             end
             else if (state == adjacentReadRegularLoadMasters) begin //on regular adjacent reads, multiplex the correct memory address
-                //The adjacent counter determines the first 3 selector bits, and of the 128 other memory bits, index 3 minus last two core bits
+                //The adjacent counter determines the first 3 selector bits, and of the 128 other memory bits, index 4 minus last two core bits
                 masterMar <= mar[ { adjacentCounter[2:0], lateMarBits[1] ^ lateMarBits[0], lateMarBits[0], 5'b00000} +: 32];
             end
             else if (state == nonAdjacentReadLoadMasters) begin //On non-adjacent reads, the non-adjacent counter selects which address to choose, linearly
@@ -202,11 +202,11 @@ module globalMemoryCache(
             else if (state == adjacentWriteRegularLoadMasters) begin //On a regular write, select the address with the adjacent counter times 'd128
                 masterMar <= mar[{ adjacentCounter[2:0], 2'b00, 5'b00000} +: 32];
             end
-            else if (state == adjacentWriteOffAxisMiddleLoadMasters) begin //On a middle off-axis write, after selecting 'd128 bit pair, select 32 bit word using 3-mar[1:0]
+            else if (state == adjacentWriteOffAxisMiddleLoadMasters) begin //On a middle off-axis write, after selecting 'd128 bit pair, select 32 bit word using 4-mar[1:0]
                 masterMar <= mar[{ adjacentOffAxisWriteCounter[2:0], lateMarBits[1] ^ lateMarBits[0], lateMarBits[0], 5'b00000} +: 32];  
             end
             else if (state == adjacentWriteOffAxisLastLoadMasters) begin //On an off-axis write, for the last one, just pick the last 128 bits
-                masterMar <= mar[{3'b101, lateMarBits[1] ^ lateMarBits[0], lateMarBits[0], 5'b00000} +: 32]; //Then select with 3 - first memory address
+                masterMar <= mar[{3'b101, lateMarBits[1] ^ lateMarBits[0], lateMarBits[0], 5'b00000} +: 32]; //Then select with 4 - first memory address
             end
             else if (state == nonAdjacentWriteLoadMasters) begin //On non-adjacent write, just select which memory address using non-adjacent counter
                 masterMar <= mar[{nonAdjacentCounter[4:0], 5'b00000} +:32];
@@ -214,7 +214,7 @@ module globalMemoryCache(
 
 
             if (state == adjacentWriteOffAxisFirstLoadMasters) begin
-                case(mar[1:0])//write 32 * (3 - first two bits of first core address) to most significant bits of masterDataIn register
+                case(mar[1:0])//write 32 * (4 - first two bits of first core address) to most significant bits of masterDataIn register
                     2'b01: masterDataIn[127:32] <= writeData[95:0]; 
                     2'b10: masterDataIn[127:64] <= writeData[63:0]; 
                     2'b11: masterDataIn[127:96] <= writeData[31:0];
@@ -224,10 +224,10 @@ module globalMemoryCache(
                 masterDataIn <= writeData[{adjacentCounter[2:0], 2'b00, 5'b00000} +: 128];
             end
             else if (state == adjacentWriteOffAxisMiddleLoadMasters) begin //On the middle write of an off-axis write, use the counter to select 128 bit groups
-                masterDataIn <= writeData[{adjacentOffAxisWriteCounter[2:0], lateMarBits[1]^lateMarBits[0], lateMarBits[0], 5'b00000} +: 128]; //Then use 3 - (mar[1:0])
+                masterDataIn <= writeData[{adjacentOffAxisWriteCounter[2:0], lateMarBits[1]^lateMarBits[0], lateMarBits[0], 5'b00000} +: 128]; //Then use 4 - (mar[1:0])
             end
             else if (state == adjacentWriteOffAxisLastLoadMasters) begin //On the last write of an off-axis adjacent write
-                case(mar[1:0]) //write 32 * (3 - mar[1:0])
+                case(mar[1:0]) //write 32 * (4 - mar[1:0])
                     2'b01: masterDataIn[31:0] <= writeData[767:736];
                     2'b10: masterDataIn[63:0] <= writeData[767:704];
                     2'b11: masterDataIn[95:0] <= writeData[767:672];
@@ -237,24 +237,24 @@ module globalMemoryCache(
                 masterDataIn <= nonAdjacentMasterDataIn; //just use the non-adjacent counter as selector bits for the writeData.
             end
 
-            if(loadGlobalMemReadRegister) begin
+            if(loadGlobalMemReadRegister) begin //loadGlobalMemReadRegister saves the output from the DDR3
                 globalMemReadRegister <= globalMemRead;
             end
 
-            if(state == Idle) begin
+            if(state == Idle) begin //save the first two bits of mar, as this will allow for understanding on-axis vs off-axis reads/writes
                 lateMarBits <= mar[1:0];
             end
 
-            if (state == adjacentWriteRegularWriteOnlyGlobal || state == adjacentWriteRegularWriteBoth) begin
+            if (state == adjacentWriteRegularWriteOnlyGlobal || state == adjacentWriteRegularWriteBoth) begin //If a regular read, use adjacentCounter as selector bits for which cores are active
                 globalMemoryWriteByteEnableConcatenated <= writingMemoryDataGlobal[{adjacentCounter[2:0], 2'b00} +: 4];
             end
-            else if (state == adjacentWriteOffAxisMiddleWriteOnlyGlobal || state == adjacentWriteOffAxisMiddleWriteBoth) begin
+            else if (state == adjacentWriteOffAxisMiddleWriteOnlyGlobal || state == adjacentWriteOffAxisMiddleWriteBoth) begin //If off-axis, offset by 4-mar[1:0]
                 globalMemoryWriteByteEnableConcatenated <= writingMemoryDataGlobal[{adjacentOffAxisWriteCounter[2:0], lateMarBits[1] ^ lateMarBits[0], lateMarBits[0]} +: 4];
             end
                                 
                    
             else if (state == adjacentWriteOffAxisLastPartialWrite || state == adjacentWriteOffAxisLastOnlyGlobal) begin
-                case(lateMarBits)
+                case(lateMarBits) //for last off-axis write, only write 32 sets of mar[1:0] bits total
                     2'b01: globalMemoryWriteByteEnableConcatenated <= {3'b000, writingMemoryDataGlobal[23]};
                     2'b10: globalMemoryWriteByteEnableConcatenated <= {2'b00, writingMemoryDataGlobal[23:22]};
                     2'b11: globalMemoryWriteByteEnableConcatenated <= {1'b0, writingMemoryDataGlobal[23:21]};
@@ -262,16 +262,15 @@ module globalMemoryCache(
             end
             
             else if (state == adjacentWriteOffAxisFirstPartialWrite || state == adjacentWriteOffAxisFirstOnlyGlobal) begin
-                case(lateMarBits)
+                case(lateMarBits)//for last off-axis write, only write 32 sets of 4 - mar[1:0] bits total
                     2'b01: globalMemoryWriteByteEnableConcatenated <= {writingMemoryDataGlobal[2:0], 1'b0};
                     2'b10: globalMemoryWriteByteEnableConcatenated <= {writingMemoryDataGlobal[1:0], 2'b00};
                     2'b11: globalMemoryWriteByteEnableConcatenated <= {writingMemoryDataGlobal[0], 3'b000};
                 endcase
             end
             
-            
             else if (state == nonAdjacentWriteGlobal1 || state == nonAdjacentWritePartialWrite) begin
-                globalMemoryWriteByteEnableConcatenated <= 0;
+                globalMemoryWriteByteEnableConcatenated <= 0; //on non-adjacent writes, only write one set of 32 bits
                 globalMemoryWriteByteEnableConcatenated[masterMar[1:0]] <= writingMemoryDataGlobal[nonAdjacentCounter];
             end
 
@@ -280,11 +279,12 @@ module globalMemoryCache(
     end
 
     always_comb begin
-        adjacentCounterPlusOne = adjacentCounter + 1;
+        adjacentCounterPlusOne = adjacentCounter + 1; //incremented counters
         nonAdjacentCounterPlusOne = nonAdjacentCounter + 1;
         adjacentOffAxisWriteCounterPlusOne = adjacentOffAxisWriteCounter + 1;
+        
         nonAdjacentMasterDataIn = 128'hxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx;
-        case(mar[{nonAdjacentCounter[4:0], 5'b00000}+: 2]) //maybe I should add in another state to reduce the number of LUTs. ( up to 3 states for this branch, so still not a lot.)
+        case(mar[{nonAdjacentCounter[4:0], 5'b00000}+: 2]) //depending on the mar, write only 32 bits to one of four locations in the masterDataIn
             2'b00: nonAdjacentMasterDataIn[31:0] = writeData[{nonAdjacentCounter[4:0], 5'b00000} +: 32];
             2'b01: nonAdjacentMasterDataIn[63:32] = writeData[{nonAdjacentCounter[4:0], 5'b00000} +: 32];
             2'b10: nonAdjacentMasterDataIn[95:64] = writeData[{nonAdjacentCounter[4:0], 5'b00000} +: 32];
@@ -294,7 +294,7 @@ module globalMemoryCache(
 
 
         headerBramEnable = 0;
-        if (state inside {
+        if (state inside { //all conditions for whether to enable the cache tag BRAM
             adjacentReadOffAxisFirstSearchHeader1, 
             adjacentReadOffAxisFirstCacheMissDistributeData, 
             adjacentReadRegularSearchHeader1, 
@@ -315,7 +315,7 @@ module globalMemoryCache(
 
         unique case (state)
             // States where headerBramWriteEnable = 0
-            adjacentReadOffAxisFirstSearchHeader1,
+            adjacentReadOffAxisFirstSearchHeader1, //These are all cases when reading
             adjacentWriteRegularSearchHeader,
             adjacentReadRegularSearchHeader1,
             nonAdjacentReadSearchHeader1,
@@ -325,7 +325,7 @@ module globalMemoryCache(
             nonAdjacentWriteSearchHeader1: headerBramWriteEnable = 0;
     
             // States where headerBramWriteEnable = 1
-            adjacentReadOffAxisFirstCacheMissDistributeData,
+            adjacentReadOffAxisFirstCacheMissDistributeData, //These are all cases when writing
             adjacentReadRegularCacheMissDistributeData,
             adjacentWriteOffAxisFirstPartialWrite,
             adjacentWriteRegularWriteBoth,
@@ -334,14 +334,14 @@ module globalMemoryCache(
             nonAdjacentWritePartialWrite: headerBramWriteEnable = 1;
     
             // Default case (optional)
-            default: headerBramWriteEnable = 0;
+            default: headerBramWriteEnable = 0; //This should be when the BRAM is disabled
         endcase
         
         end
 
 
         dataBramEnable = 0;
-        if (state inside {
+        if (state inside { //All conditions for whether to enable the cache data BRAMs
             adjacentReadOffAxisFirstSearchHeader1, 
             adjacentReadOffAxisFirstCacheMissDistributeData, 
             adjacentReadRegularSearchHeader1, 
@@ -358,12 +358,12 @@ module globalMemoryCache(
 
         case (state)
         // States where headerBramWriteEnable = 0
-            adjacentReadOffAxisFirstSearchHeader1,
+            adjacentReadOffAxisFirstSearchHeader1, //Only scenarios when reading and checking for a cache hit - preload data to be ready
             adjacentReadRegularSearchHeader1,
             nonAdjacentReadSearchHeader1: dataBramWriteEnable = 0;
 
             // States where headerBramWriteEnable = 1
-            adjacentReadOffAxisFirstCacheMissDistributeData,
+            adjacentReadOffAxisFirstCacheMissDistributeData, //scenarios when to overwrite data in the cache
             adjacentReadRegularCacheMissDistributeData,
             adjacentWriteOffAxisFirstPartialWrite,
             adjacentWriteRegularWriteBoth,
@@ -377,7 +377,7 @@ module globalMemoryCache(
 
 
         if(state inside {
-            adjacentReadOffAxisFirstCacheMissGlobalRead1,
+            adjacentReadOffAxisFirstCacheMissGlobalRead1, //All conditions whhen to turn on DDR3
             adjacentReadRegularCacheMissGlobalRead1,
             nonAdjacentReadCacheMissGlobalRead1,
             adjacentWriteOffAxisFirstPartialWrite,
@@ -391,25 +391,23 @@ module globalMemoryCache(
         }) begin
             globalEnable = 1;
         end
-        else if (state inside {
+        else if (state inside { 
             nonAdjacentWriteGlobal1,
             nonAdjacentWritePartialWrite        
         }) begin
-            globalEnable = writingMemoryDataGlobal[nonAdjacentCounter];
+            globalEnable = 1; //Just turn off the DDR3 writing by using writeBytes
         end
         else begin
-            globalEnable = 0;
+            globalEnable = 0; //Otherwise the memory should be off
         end
         
 
         case (state)
-        // States where headerBramWriteEnable = 0
-            adjacentReadOffAxisFirstCacheMissGlobalRead1,
+            adjacentReadOffAxisFirstCacheMissGlobalRead1, //read when there is a cache miss
             adjacentReadRegularCacheMissGlobalRead1,
             nonAdjacentReadCacheMissGlobalRead1: globalWriteEnable = 0;
 
-            // States where headerBramWriteEnable = 1
-            adjacentWriteOffAxisFirstPartialWrite,
+            adjacentWriteOffAxisFirstPartialWrite, //Otherwise, write during all writing cases
             adjacentWriteOffAxisFirstOnlyGlobal,
             adjacentWriteRegularWriteBoth,
             adjacentWriteOffAxisMiddleWriteBoth,
@@ -424,10 +422,10 @@ module globalMemoryCache(
             default: globalWriteEnable = 1'bx;
         endcase
 
-        unique case(state)
-            adjacentReadOffAxisFirstCacheMissDistributeData,
+        unique case(state) //This signal writes data to the data BRAM straight from the DDR3 read register rather than from the cores
+            adjacentReadOffAxisFirstCacheMissDistributeData, 
             adjacentReadRegularCacheMissDistributeData,
-            nonAdjacentReadCacheMissDistributeData: loadDataBramFromGlobal = 1;
+            nonAdjacentReadCacheMissDistributeData: loadDataBramFromGlobal = 1; //If the cache was a miss and the data comes back
 
             adjacentWriteOffAxisFirstPartialWrite,
             adjacentWriteRegularWriteBoth,
@@ -435,59 +433,47 @@ module globalMemoryCache(
             adjacentWriteOffAxisMiddleWriteOnlyGlobal,
             adjacentWriteRegularWriteOnlyGlobal,
             adjacentWriteOffAxisLastPartialWrite,
-            nonAdjacentWritePartialWrite: loadDataBramFromGlobal = 0;
+            nonAdjacentWritePartialWrite: loadDataBramFromGlobal = 0; //Some of these states are unnecessary I think
 
             default: loadDataBramFromGlobal = 1'bx;
         endcase
 
 
-        case(state)
+        case(state) //Only load the DDR3 read register when a read cache miss occurs and the DDR3 is activated
             adjacentReadOffAxisFirstCacheMissGlobalRead2,
             adjacentReadRegularCacheMissGlobalRead2,
             nonAdjacentReadCacheMissGlobalRead2: loadGlobalMemReadRegister = 1;
             default: loadGlobalMemReadRegister = 0;
         endcase
 
-        dataBramIn = (loadDataBramFromGlobal) ? globalMemReadRegister : masterDataIn;
+        dataBramIn = (loadDataBramFromGlobal) ? globalMemReadRegister : masterDataIn; //The data bram data should be loaded from either the cores or the DDR3 read cache miss
 
-        globalMemAddr = {masterMar[24:2], 3'b0}; //Bits [3:1] should always be 0. If they aren't I fucked up (unless there is a non-consecutive write, in which case it is expected)
+        globalMemAddr = {masterMar[24:2], 3'b000}; //Bits [3:1] should always be 0. If they aren't I screwed up (unless there is a non-consecutive write, in which case it is expected)
         
-        globalMemDataWrite = masterDataIn;
+        globalMemDataWrite = masterDataIn; //We write the data from the master data in register
         
-        bramHeaderDataIn = (resetHeaderBramCounter != 11'h7FF) ? 16'hFFFF : {4'b0000, masterMar[24:13]}; //Twelve bits in the data
+        bramHeaderDataIn = (resetHeaderBramCounter != 11'h7FF) ? 16'hFFFF : {4'b0000, masterMar[24:13]}; //Twelve bits in the data, unless we are resetting the cache to not read bad data.
         
         bramHeaderAddress = (resetHeaderBramCounter != 11'h7FF) ? resetHeaderBramCounter : masterMar[12:2]; //Eleven bits in the address. I have enough room I think if I wanted to to double this.
         
-        cacheHitBit = bramHeaderDataOut[11:0] == masterMar[24:13];
+        cacheHitBit = bramHeaderDataOut[11:0] == masterMar[24:13]; // The cache is a hit if the tags in the BRAM header, and if it matches the mar, it is a success!
 
 
         if(state == adjacentReadOffAxisFirstCacheMissDistributeData || state == adjacentReadOffAxisFirstSearchHeader1) begin
-//            case(lateMarBits)
-//                2'b01: dataBramSegmentsOn = {readingMemoryDataGlobal[2:0], 1'b0};
-//                2'b10: dataBramSegmentsOn = {readingMemoryDataGlobal[1:0], 2'b00};
-//                2'b11: dataBramSegmentsOn = {readingMemoryDataGlobal[0], 3'b000};
-//            endcase
-            dataBramSegmentsOn = 4'b1111;
+            dataBramSegmentsOn = 4'b1111; //no harm to writing all of the data
         end
         else if (state == adjacentReadRegularCacheMissDistributeData || state == adjacentReadRegularSearchHeader1) begin
-//            if(adjacentCounter!=3'b111) begin
-//                dataBramSegmentsOn = readingMemoryDataGlobal[{adjacentCounter[2:0], lateMarBits[1] ^ lateMarBits[0], lateMarBits[0]} +: 4];
-//            end
-//            else begin
-//                case(lateMarBits)
-//                    2'b01: dataBramSegmentsOn = {3'b000, readingMemoryDataGlobal[31]};
-//                    2'b10: dataBramSegmentsOn = {2'b00, readingMemoryDataGlobal[31:30]};
-//                    2'b11: dataBramSegmentsOn = {1'b0, readingMemoryDataGlobal[31:29]};
-//                endcase
-//            end
-              dataBramSegmentsOn = 4'b1111;
+              dataBramSegmentsOn = 4'b1111; //no harm to writing all of the data
         end
         else if (state == nonAdjacentReadCacheMissDistributeData) begin
-            dataBramSegmentsOn = 0;
-            dataBramSegmentsOn[masterMar[1:0]] = readingMemoryDataGlobal[nonAdjacentCounter];
+            // dataBramSegmentsOn = 0; //This doesn't need to be the case I think
+            // dataBramSegmentsOn[masterMar[1:0]] = readingMemoryDataGlobal[nonAdjacentCounter];
+              dataBramSegmentsOn = 4'b1111; //no harm to writing all of the data
         end
+
+        //Now for writes
         else if (state == adjacentWriteOffAxisFirstPartialWrite) begin
-            case(lateMarBits)
+            case(lateMarBits) //If the cache was hit, only write 32 * (4 - mar[1:0]) bits
                 2'b01: dataBramSegmentsOn = {writingMemoryDataGlobal[2:0], 1'b0};
                 2'b10: dataBramSegmentsOn = {writingMemoryDataGlobal[1:0], 2'b00};
                 2'b11: dataBramSegmentsOn = {writingMemoryDataGlobal[0], 3'b000};
@@ -495,65 +481,63 @@ module globalMemoryCache(
             endcase
         end
         
-
-        
-        else if (state == adjacentWriteRegularWriteBoth) begin
+        else if (state == adjacentWriteRegularWriteBoth) begin // write only the brams that the cores want to write to
             dataBramSegmentsOn = writingMemoryDataGlobal[{adjacentCounter[2:0], 2'b00} +: 4];
         end
-        else if (state == adjacentWriteOffAxisMiddleWriteBoth) begin
+        else if (state == adjacentWriteOffAxisMiddleWriteBoth) begin // write only the brams that the cores want to write to, offsetting the indices using 4 - mar[1:0]
             dataBramSegmentsOn = writingMemoryDataGlobal[{adjacentOffAxisWriteCounter[2:0], lateMarBits[1] ^ lateMarBits[0], lateMarBits[0]} +: 4];
         end
                
         else if (state == adjacentWriteOffAxisLastPartialWrite) begin 
-            case(lateMarBits)
+            case(lateMarBits) // for the last write on adjacent off-axis, only write mar[1:0] segments.
                 2'b01: dataBramSegmentsOn = {3'b000, writingMemoryDataGlobal[23]};
                 2'b10: dataBramSegmentsOn = {2'b00, writingMemoryDataGlobal[23:22]};
                 2'b11: dataBramSegmentsOn = {1'b0, writingMemoryDataGlobal[23:21]};
             endcase
         end
-        else if (state == nonAdjacentWritePartialWrite) begin
-            dataBramSegmentsOn = 0;
+        else if (state == nonAdjacentWritePartialWrite) begin //On non-adjacent writes with cache hits, only write 1 of 4 bram segments, depending
+            dataBramSegmentsOn = 0; //                          On the pixel axis of the write
             dataBramSegmentsOn[masterMar[1:0]] = writingMemoryDataGlobal[nonAdjacentCounter];
         end
         else begin
-            dataBramSegmentsOn = 4'b0000;
+            dataBramSegmentsOn = 4'b0000; //Otherwise don't write anything
         end
 
 
 
-        globalMemoryWriteByteEnable[1:0] = {2{globalMemoryWriteByteEnableConcatenated[0]}};
+        globalMemoryWriteByteEnable[1:0] = {2{globalMemoryWriteByteEnableConcatenated[0]}}; //Only allow 32 bits to be written at a time
         globalMemoryWriteByteEnable[3:2] = {2{globalMemoryWriteByteEnableConcatenated[1]}};
         globalMemoryWriteByteEnable[5:4] = {2{globalMemoryWriteByteEnableConcatenated[2]}};
         globalMemoryWriteByteEnable[7:6] = {2{globalMemoryWriteByteEnableConcatenated[3]}};
 
 
-        dataBramIndividualEnable = {4{dataBramEnable}} & dataBramSegmentsOn;
+        dataBramIndividualEnable = {4{dataBramEnable}} & dataBramSegmentsOn; //only turn the cache data brams on when they should be turned on and individual cores are turned on
 
         dataOut = 128'hxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx;
-        if(state == adjacentReadOffAxisFirstCacheHitDistributeData) begin //I'm going to double wire all of these. This is wasteful, and if I'm out of space I should redo this.
-            case(mar[1:0])                                                //Otherwise, just load the masterDataOut and distribute it there.
+        if(state == adjacentReadOffAxisFirstCacheHitDistributeData) begin 
+            case(mar[1:0])//distribute the bram data to different cores on cache hits for the first adjacent off-axis reads.
                 2'b01: dataOut[95:0] = dataBramOut[127:32];
                 2'b10: dataOut[63:0] = dataBramOut[127:64];
                 2'b11: dataOut[31:0] = dataBramOut[127:96];
             endcase
         end
-        else if (state == adjacentReadRegularCacheHitDistributeData) begin
+        else if (state == adjacentReadRegularCacheHitDistributeData) begin // for regular reads, send data to the cores from the cache depending on the counter index and mar[1:0]
             dataOut[{adjacentCounter[2:0], lateMarBits[1] ^ lateMarBits[0], lateMarBits[0], 5'b00000} +: 128] = dataBramOut;
         end
-        else if (state == nonAdjacentReadCacheHitDistributeData) begin
+        else if (state == nonAdjacentReadCacheHitDistributeData) begin //For non-adjacent reads, send the core indexed by nonAdjacentCounter the data from the data BRAM depending on its last two address bits
             dataOut[{nonAdjacentCounter[4:0], 5'b00000} +: 32] = dataBramOut[{masterMar[1:0], 5'b00000} +: 32];
         end 
         else if (state == adjacentReadOffAxisFirstCacheMissDistributeData) begin
-            case(mar[1:0])                                                
+            case(mar[1:0]) //If the read is the first off axis read and the cache hits, distribute the data to the cores
                 2'b01: dataOut[95:0] = globalMemReadRegister[127:32];
                 2'b10: dataOut[63:0] = globalMemReadRegister[127:64];
                 2'b11: dataOut[31:0] = globalMemReadRegister[127:96];
             endcase
         end
-        else if (state == adjacentReadRegularCacheMissDistributeData) begin
+        else if (state == adjacentReadRegularCacheMissDistributeData) begin // if the read was a cache miss, distribute the data from the DDR3 read register
             dataOut[{adjacentCounter[2:0], lateMarBits[1] ^ lateMarBits[0], lateMarBits[0], 5'b00000} +: 128] = globalMemReadRegister;
         end
-        else if (state == nonAdjacentReadCacheMissDistributeData) begin
+        else if (state == nonAdjacentReadCacheMissDistributeData) begin // if the read was a cache miss, distribute only the data from the DDR3 read register that matches that core that was read
             dataOut[{nonAdjacentCounter[4:0], 5'b00000} +: 32] = globalMemReadRegister[{masterMar[1:0], 5'b00000} +: 32];
         end
 
@@ -561,41 +545,34 @@ module globalMemoryCache(
 
         finishedWritingMemoryDataGlobal = 0;
         if(state == adjacentWriteOffAxisFirstGlobalWait && globalMemFinishedActionReg) begin
-            case(lateMarBits)
+            case(lateMarBits) //if the write is the first non-adjacent, only tell the first 4-mar[1:0] cores they are finished
                 2'b01: finishedWritingMemoryDataGlobal[2:0] = 3'b111;
                 2'b10: finishedWritingMemoryDataGlobal[2:0] = 3'b011;
                 2'b11: finishedWritingMemoryDataGlobal[2:0] = 3'b001;
             endcase        
         end
-                
         else if (state == adjacentWriteRegularGlobalWait && globalMemFinishedActionReg) begin
-            finishedWritingMemoryDataGlobal[{adjacentCounter, 2'b00} +: 4] = 4'b1111;
-        end
-        else if (state == adjacentWriteOffAxisMiddleGlobalWait && globalMemFinishedActionReg) begin
+            finishedWritingMemoryDataGlobal[{adjacentCounter, 2'b00} +: 4] = 4'b1111; //Tell the four cores they are finished on writes. 
+        end                                                                          //You are allowed to tell an Idle core it is finished
+        
+        else if (state == adjacentWriteOffAxisMiddleGlobalWait && globalMemFinishedActionReg) begin //Same above but for non-adjacent writes, offset by 4 - mar[1:0]
             finishedWritingMemoryDataGlobal[{adjacentOffAxisWriteCounter, lateMarBits[1] ^ lateMarBits[0], lateMarBits[0]} +: 4] = 4'b1111;
         end
                       
         else if (state == adjacentWriteOffAxisLastGlobalWait && globalMemFinishedActionReg) begin
-            case(lateMarBits)
-                2'b01: finishedWritingMemoryDataGlobal[23:21] = 3'b100;
+            case(lateMarBits) //On the last write, tell the last cores they are finished
+                2'b01: finishedWritingMemoryDataGlobal[23:21] = 3'b100; //This isn't strictly necessary, but they should all be done regardless.
                 2'b10: finishedWritingMemoryDataGlobal[23:21] = 3'b110;
                 2'b11: finishedWritingMemoryDataGlobal[23:21] = 3'b111;
             endcase       
         end
-             
-        
-        
-//        else if (state == nonAdjacentWriteCheckHit) begin
-//            finishedWritingMemoryDataGlobal[nonAdjacentCounter] = ~cacheHitBit;
-//        end
         else if (state == nonAdjacentWriteGlobal2 && globalMemFinishedActionReg) begin
-            finishedWritingMemoryDataGlobal[nonAdjacentCounter] = 1'b1;
-//              finishedWritingMemoryDataGlobal[nonAdjacentCounter] = 1'b1;
+            finishedWritingMemoryDataGlobal[nonAdjacentCounter] = 1'b1; //When writing non-adjacently, only tell one core at a time that it is finished
         end
 
         finishedReadingMemoryDataGlobal = 0;
         if(state == adjacentReadOffAxisFirstCacheHitDistributeData) begin
-            case(lateMarBits)
+            case(lateMarBits) //when reading on a cache hit or miss on the first off-axis read, tell the first 4 - mar[1:0] they are finished
                 2'b01: finishedReadingMemoryDataGlobal[2:0] = 3'b111;
                 2'b10: finishedReadingMemoryDataGlobal[2:0] = 3'b011;
                 2'b11: finishedReadingMemoryDataGlobal[2:0] = 3'b001;
@@ -608,22 +585,22 @@ module globalMemoryCache(
                 2'b11: finishedReadingMemoryDataGlobal[2:0] = 3'b001;
             endcase           
         end
-        else if (state == adjacentReadRegularCacheHitDistributeData) begin
+        else if (state == adjacentReadRegularCacheHitDistributeData) begin //adjacent reads can just be finished reading on either a cache hit or a miss 
             finishedReadingMemoryDataGlobal[{adjacentCounter, lateMarBits[1] ^ lateMarBits[0], lateMarBits[0]} +: 4] = 4'b1111;
         end
         else if (state == adjacentReadRegularCacheMissDistributeData) begin
             finishedReadingMemoryDataGlobal[{adjacentCounter, lateMarBits[1] ^ lateMarBits[0], lateMarBits[0]} +: 4] = 4'b1111;    
         end
         else if (state == nonAdjacentReadCacheHitDistributeData || state == nonAdjacentReadCacheMissDistributeData) begin
-            finishedReadingMemoryDataGlobal[nonAdjacentCounter] = 1'b1;
+            finishedReadingMemoryDataGlobal[nonAdjacentCounter] = 1'b1; //When reading non-adjacently, only tell 1 core at a time it is finished, indexed by nonAdjacentCounter
         end
 
     end
     int adjacencyInt;
-    always_comb begin
-        for(adjacencyInt = 0; adjacencyInt < 31; adjacencyInt += 1) begin
-            adjacencyChecker[adjacencyInt] = ~(readingMemoryDataGlobal[adjacencyInt + 1] | writingMemoryDataGlobal[adjacencyInt + 1]) | 
-            ((mar[(adjacencyInt + 1) * 32 +: 32] - mar[(adjacencyInt) * 32 +: 32]) == 32'h0001);
+    always_comb begin //This checks whether the core addresses are adjacent or not. This algorithm should be improved in the future
+        for(adjacencyInt = 0; adjacencyInt < 31; adjacencyInt += 1) begin //If a single core's mar is one minus the next core's mar, then it is adjacent
+            adjacencyChecker[adjacencyInt] = (readingMemoryDataGlobal[adjacencyInt + 1] | writingMemoryDataGlobal[adjacencyInt + 1]) &
+            ((mar[(adjacencyInt + 1) * 32 +: 32] - mar[(adjacencyInt) * 32 +: 32]) == 32'h0001); // If the core is turned off, it is not adjacent
         end
     
     end    
@@ -635,8 +612,8 @@ module globalMemoryCache(
             blk_mem_gen_2 u_blk_mem_gen_2 (
                 .clka  (clk),      
                 .ena   (dataBramIndividualEnable[dataBram]),       
-                .wea   (dataBramWriteEnable),        
-                .addra (masterMar[12:2]),    
+                .wea   (dataBramWriteEnable),        //different brams will only be either written to or read from at once.
+                .addra (masterMar[12:2]),    //hash with the lower bits of the memory address
                 .dina  (dataBramIn[dataBram * 32 +: 32]),    
                 .douta (dataBramOut[dataBram * 32 +: 32])
             );
@@ -644,7 +621,7 @@ module globalMemoryCache(
     endgenerate
     blk_mem_gen_3 u_blk_mem_gen_3 (
         .clka  (clk),      
-        .ena   ( (headerBramEnable | (resetHeaderBramCounter != 11'h7FF)) ),       
+        .ena   ( (headerBramEnable | (resetHeaderBramCounter != 11'h7FF)) ),  //If the resetHeaderBramCounter is still counting up, it is enabled and writing.
         .wea   ( (headerBramWriteEnable | (resetHeaderBramCounter != 11'h7FF)) ),        
         .addra (bramHeaderAddress),    
         .dina  (bramHeaderDataIn),    
