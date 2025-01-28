@@ -122,119 +122,119 @@ module globalMemoryCache(
                 nonAdjacentReadCacheMissDistributeData: state <= ((nonAdjacentCounter == 5'b10111 )|| ~(|readingMemoryDataGlobal)) ? Idle : nonAdjacentReadLoadMasters;
 
                 //Adjacent, off axis writes
-                adjacentWriteOffAxisFirstLoadMasters: state <= adjacentWriteOffAxisFirstSearchHeader; 
-                adjacentWriteOffAxisFirstSearchHeader: state <= adjacentWriteOffAxisFirstCheckHit; //changing
-                adjacentWriteOffAxisFirstCheckHit: state <= (cacheHitBit) ? adjacentWriteOffAxisFirstPartialWrite : adjacentWriteOffAxisFirstOnlyGlobal;
-                adjacentWriteOffAxisFirstPartialWrite: state <= adjacentWriteOffAxisFirstGlobalWait;
-                adjacentWriteOffAxisFirstOnlyGlobal: state <= adjacentWriteOffAxisFirstGlobalWait;
-                adjacentWriteOffAxisFirstGlobalWait: state <= (globalMemFinishedActionReg) ? adjacentWriteOffAxisMiddleLoadMasters : adjacentWriteOffAxisFirstGlobalWait;
+                adjacentWriteOffAxisFirstLoadMasters: state <= adjacentWriteOffAxisFirstSearchHeader; //Load the master memory address register with MAR 1
+                adjacentWriteOffAxisFirstSearchHeader: state <= adjacentWriteOffAxisFirstCheckHit; //Send the command to the BRAM to check whether it has the data
+                //check the Most significant bits of the addresses stored in the tags. If it is equal, the data is present.
+                adjacentWriteOffAxisFirstCheckHit: state <= (cacheHitBit) ? adjacentWriteOffAxisFirstPartialWrite : adjacentWriteOffAxisFirstOnlyGlobal; 
+                adjacentWriteOffAxisFirstPartialWrite: state <= adjacentWriteOffAxisFirstGlobalWait; //If the data exists in cache, make sure to overwrite it as well.
+                adjacentWriteOffAxisFirstOnlyGlobal: state <= adjacentWriteOffAxisFirstGlobalWait; //If the data doesn't exist in cache, no need to overwrite - just send the write to DDR3
+                adjacentWriteOffAxisFirstGlobalWait: state <= (globalMemFinishedActionReg) ? adjacentWriteOffAxisMiddleLoadMasters : adjacentWriteOffAxisFirstGlobalWait; //Wait for DDR3 to respond
                 
                 
                 //regular writes. This will occur 8 times.
-                adjacentWriteRegularLoadMasters: state <= adjacentWriteRegularSearchHeader;
-                adjacentWriteRegularSearchHeader: state <= adjacentWriteRegularCheckHit;
+                adjacentWriteRegularLoadMasters: state <= adjacentWriteRegularSearchHeader; //Load the master memory address register with MAR 1
+                adjacentWriteRegularSearchHeader: state <= adjacentWriteRegularCheckHit; //Send the command to the BRAM to check whether it has the data
+                //check the Most significant bits of the addresses stored in the tags. If it is equal, the data is present.
                 adjacentWriteRegularCheckHit: state <= (cacheHitBit) ? adjacentWriteRegularWriteBoth : adjacentWriteRegularWriteOnlyGlobal;
-                adjacentWriteRegularWriteBoth: state <= adjacentWriteRegularGlobalWait;
-                adjacentWriteRegularWriteOnlyGlobal: state <= adjacentWriteRegularGlobalWait;
-                adjacentWriteRegularGlobalWait: state <= (globalMemFinishedActionReg) ? ((adjacentCounter==3'b101) ? Idle : adjacentWriteRegularLoadMasters) : adjacentWriteRegularGlobalWait;
+                adjacentWriteRegularWriteBoth: state <= adjacentWriteRegularGlobalWait; //If the data exists in cache, make sure to overwrite it as well.
+                adjacentWriteRegularWriteOnlyGlobal: state <= adjacentWriteRegularGlobalWait; //If the data doesn't exist in cache, no need to overwrite - just send the write to DDR3
+                adjacentWriteRegularGlobalWait: state <= (globalMemFinishedActionReg) ? ((adjacentCounter==3'b101) ? Idle : adjacentWriteRegularLoadMasters) : adjacentWriteRegularGlobalWait; //Wait for DDR3 to respond
 
                 //middle of off axis writes. This will occur seven times.
-                adjacentWriteOffAxisMiddleLoadMasters: state <= adjacentWriteOffAxisMiddleSearchHeader;
-                adjacentWriteOffAxisMiddleSearchHeader: state <= adjacentWriteOffAxisMiddleCheckHit;
-                adjacentWriteOffAxisMiddleCheckHit: state <= (cacheHitBit) ? adjacentWriteOffAxisMiddleWriteBoth : adjacentWriteOffAxisMiddleWriteOnlyGlobal;
-                adjacentWriteOffAxisMiddleWriteBoth: state <= adjacentWriteOffAxisMiddleGlobalWait;
-                adjacentWriteOffAxisMiddleWriteOnlyGlobal: state <= adjacentWriteOffAxisMiddleGlobalWait;//I changed below number from 100 to 101
+                adjacentWriteOffAxisMiddleLoadMasters: state <= adjacentWriteOffAxisMiddleSearchHeader; //Load the master memory address register with MAR 1
+                adjacentWriteOffAxisMiddleSearchHeader: state <= adjacentWriteOffAxisMiddleCheckHit; //Send the command to the BRAM to check whether it has the data
+                //check the Most significant bits of the addresses stored in the tags. If it is equal, the data is present.
+                adjacentWriteOffAxisMiddleCheckHit: state <= (cacheHitBit) ? adjacentWriteOffAxisMiddleWriteBoth : adjacentWriteOffAxisMiddleWriteOnlyGlobal; //If the data exists in cache, make sure to overwrite it as well.
+                adjacentWriteOffAxisMiddleWriteBoth: state <= adjacentWriteOffAxisMiddleGlobalWait; //If the data exists in cache, make sure to overwrite it as well.
+                adjacentWriteOffAxisMiddleWriteOnlyGlobal: state <= adjacentWriteOffAxisMiddleGlobalWait; //If the data doesn't exist in cache, no need to overwrite - just send the write to DDR3
                 adjacentWriteOffAxisMiddleGlobalWait: state <= (globalMemFinishedActionReg) ? ((adjacentOffAxisWriteCounter == 3'b100) ? adjacentWriteOffAxisLastLoadMasters : adjacentWriteOffAxisMiddleLoadMasters) : adjacentWriteOffAxisMiddleGlobalWait;
-
+                //Wait for DDR3 to respond
+                
                 //adjcent, off axis write. Just writes the last segment of data.
-                adjacentWriteOffAxisLastLoadMasters: state <= adjacentWriteOffAxisLastSearchHeader;
-                adjacentWriteOffAxisLastSearchHeader: state <= adjacentWriteOffAxisLastCheckHit; //changing
+                adjacentWriteOffAxisLastLoadMasters: state <= adjacentWriteOffAxisLastSearchHeader; //Last Write in an off-axis series of writes - load the master MAR
+                adjacentWriteOffAxisLastSearchHeader: state <= adjacentWriteOffAxisLastCheckHit;//Send the command to the BRAM to check whether it has the data
+                //check the Most significant bits of the addresses stored in the tags. If it is equal, the data is present.
                 adjacentWriteOffAxisLastCheckHit: state <=  (cacheHitBit) ? adjacentWriteOffAxisLastPartialWrite : adjacentWriteOffAxisLastOnlyGlobal;
-                adjacentWriteOffAxisLastPartialWrite: state <= adjacentWriteOffAxisLastGlobalWait;
-                adjacentWriteOffAxisLastOnlyGlobal: state <= adjacentWriteOffAxisLastGlobalWait;
-                adjacentWriteOffAxisLastGlobalWait: state <= (globalMemFinishedActionReg) ? Idle : adjacentWriteOffAxisLastGlobalWait;
+                adjacentWriteOffAxisLastPartialWrite: state <= adjacentWriteOffAxisLastGlobalWait; //If the data exists in cache, make sure to overwrite it as well.
+                adjacentWriteOffAxisLastOnlyGlobal: state <= adjacentWriteOffAxisLastGlobalWait; //If the data doesn't exist in cache, no need to overwrite - just send the write to DDR3
+                adjacentWriteOffAxisLastGlobalWait: state <= (globalMemFinishedActionReg) ? Idle : adjacentWriteOffAxisLastGlobalWait; //When the DDR3 responds, because it is the last write, return to Idle
 
-                //loops 32 times. Writes all core data streams.
-                nonAdjacentWriteLoadMasters: state <= nonAdjacentWriteSearchHeader1;
-                nonAdjacentWriteSearchHeader1: state <= nonAdjacentWriteCheckHit; //changing
-                nonAdjacentWriteCheckHit: state <= (cacheHitBit) ? nonAdjacentWritePartialWrite : nonAdjacentWriteGlobal1;
-                nonAdjacentWritePartialWrite: state <= nonAdjacentWriteGlobal2;
-                nonAdjacentWriteGlobal1: state <= nonAdjacentWriteGlobal2;
+                //loops 24 times. Writes all core data streams.
+                nonAdjacentWriteLoadMasters: state <= nonAdjacentWriteSearchHeader1; //Load the master memory address register
+                nonAdjacentWriteSearchHeader1: state <= nonAdjacentWriteCheckHit; //Send the command to the cache address tag BRAM
+                nonAdjacentWriteCheckHit: state <= (cacheHitBit) ? nonAdjacentWritePartialWrite : nonAdjacentWriteGlobal1; //Check if the cache is a hit or not by comparing MSBs of tag
+                nonAdjacentWritePartialWrite: state <= nonAdjacentWriteGlobal2; //Write to both cache and to DDR3
+                nonAdjacentWriteGlobal1: state <= nonAdjacentWriteGlobal2; //Send write command only to DDR3
                 nonAdjacentWriteGlobal2: state <= (globalMemFinishedActionReg) ? (((nonAdjacentCounter == 5'b10111)  | ~(|writingMemoryDataGlobal)) ? Idle : nonAdjacentWriteLoadMasters) : nonAdjacentWriteGlobal2;
+                //When DDR3 responds, check whether all 24 cores have finished writing - if so, return to Idle
             endcase
-            if(state == Idle) begin
+            if(state == Idle) begin  //If Idle, reset counters
                 nonAdjacentCounter <= 0;
                 adjacentCounter <= 0;
                 adjacentOffAxisWriteCounter <= 0;
             end
             else begin
-            
-            
-            
-            
-            
                 if(state == adjacentReadRegularCacheHitDistributeData || state == adjacentReadRegularCacheMissDistributeData || ((state == adjacentWriteRegularGlobalWait) && (globalMemFinishedActionReg))) begin
-                    adjacentCounter <= adjacentCounterPlusOne;
+                    adjacentCounter <= adjacentCounterPlusOne; //increment adjacent counter when an adjacent read or write completes
                 end
-                if((state == nonAdjacentWriteGlobal2 && globalMemFinishedActionReg)|| 
+                if((state == nonAdjacentWriteGlobal2 && globalMemFinishedActionReg)||
                 state == nonAdjacentReadCacheHitDistributeData || state == nonAdjacentReadCacheMissDistributeData) begin
-                    nonAdjacentCounter <= nonAdjacentCounterPlusOne;
+                    nonAdjacentCounter <= nonAdjacentCounterPlusOne;//increment non-adjacent counter when a non-adjacent read or non-adjacent write completes
                 end
                 if(state == adjacentWriteOffAxisMiddleGlobalWait && globalMemFinishedActionReg) begin
-                    adjacentOffAxisWriteCounter <= adjacentOffAxisWriteCounterPlusOne;
+                    adjacentOffAxisWriteCounter <= adjacentOffAxisWriteCounterPlusOne; //Increment adjacentOffAxisWriteCounter when a write which is off-axis completes
                 end
             end
 
-
-
             if(state == adjacentReadOffAxisFirstLoadMasters) begin 
-                masterMar <= mar[31:0];
+                masterMar <= mar[31:0]; //on adjacent off-axis reads, the first core begins first
             end
-            else if (state == adjacentReadRegularLoadMasters) begin
+            else if (state == adjacentReadRegularLoadMasters) begin //on regular adjacent reads, multiplex the correct memory address
+                //The adjacent counter determines the first 3 selector bits, and of the 128 other memory bits, index 3 minus last two core bits
                 masterMar <= mar[ { adjacentCounter[2:0], lateMarBits[1] ^ lateMarBits[0], lateMarBits[0], 5'b00000} +: 32];
             end
-            else if (state == nonAdjacentReadLoadMasters) begin
+            else if (state == nonAdjacentReadLoadMasters) begin //On non-adjacent reads, the non-adjacent counter selects which address to choose, linearly
                 masterMar <= mar[{nonAdjacentCounter[4:0], 5'b00000} +:32];
             end
             else if (state == adjacentWriteOffAxisFirstLoadMasters) begin
-                masterMar <= mar[31:0];
+                masterMar <= mar[31:0]; //for off-axis adjacent writes, the first core begins
             end
-            else if (state == adjacentWriteRegularLoadMasters) begin
+            else if (state == adjacentWriteRegularLoadMasters) begin //On a regular write, select the address with the adjacent counter times 'd128
                 masterMar <= mar[{ adjacentCounter[2:0], 2'b00, 5'b00000} +: 32];
             end
-            else if (state == adjacentWriteOffAxisMiddleLoadMasters) begin
-                masterMar <= mar[{ adjacentOffAxisWriteCounter[2:0], lateMarBits[1] ^ lateMarBits[0], lateMarBits[0], 5'b00000} +: 32]; //I need to be careful with these two different counters...  
+            else if (state == adjacentWriteOffAxisMiddleLoadMasters) begin //On a middle off-axis write, after selecting 'd128 bit pair, select 32 bit word using 3-mar[1:0]
+                masterMar <= mar[{ adjacentOffAxisWriteCounter[2:0], lateMarBits[1] ^ lateMarBits[0], lateMarBits[0], 5'b00000} +: 32];  
             end
-            else if (state == adjacentWriteOffAxisLastLoadMasters) begin
-                masterMar <= mar[{3'b101, lateMarBits[1] ^ lateMarBits[0], lateMarBits[0], 5'b00000} +: 32];
+            else if (state == adjacentWriteOffAxisLastLoadMasters) begin //On an off-axis write, for the last one, just pick the last 128 bits
+                masterMar <= mar[{3'b101, lateMarBits[1] ^ lateMarBits[0], lateMarBits[0], 5'b00000} +: 32]; //Then select with 3 - first memory address
             end
-            else if (state == nonAdjacentWriteLoadMasters) begin
+            else if (state == nonAdjacentWriteLoadMasters) begin //On non-adjacent write, just select which memory address using non-adjacent counter
                 masterMar <= mar[{nonAdjacentCounter[4:0], 5'b00000} +:32];
             end
 
 
             if (state == adjacentWriteOffAxisFirstLoadMasters) begin
-                case(mar[1:0])
-                    2'b01: masterDataIn[127:32] <= writeData[95:0];
-                    2'b10: masterDataIn[127:64] <= writeData[63:0];
+                case(mar[1:0])//write 32 * (3 - first two bits of first core address) to most significant bits of masterDataIn register
+                    2'b01: masterDataIn[127:32] <= writeData[95:0]; 
+                    2'b10: masterDataIn[127:64] <= writeData[63:0]; 
                     2'b11: masterDataIn[127:96] <= writeData[31:0];
                 endcase
             end
-            else if (state == adjacentWriteRegularLoadMasters) begin
+            else if (state == adjacentWriteRegularLoadMasters) begin //On a regular write, just use adjacent counter as a selector counter
                 masterDataIn <= writeData[{adjacentCounter[2:0], 2'b00, 5'b00000} +: 128];
             end
-            else if (state == adjacentWriteOffAxisMiddleLoadMasters) begin
-                masterDataIn <= writeData[{adjacentOffAxisWriteCounter[2:0], lateMarBits[1]^lateMarBits[0], lateMarBits[0], 5'b00000} +: 128];
+            else if (state == adjacentWriteOffAxisMiddleLoadMasters) begin //On the middle write of an off-axis write, use the counter to select 128 bit groups
+                masterDataIn <= writeData[{adjacentOffAxisWriteCounter[2:0], lateMarBits[1]^lateMarBits[0], lateMarBits[0], 5'b00000} +: 128]; //Then use 3 - (mar[1:0])
             end
-            else if (state == adjacentWriteOffAxisLastLoadMasters) begin
-                case(mar[1:0])
+            else if (state == adjacentWriteOffAxisLastLoadMasters) begin //On the last write of an off-axis adjacent write
+                case(mar[1:0]) //write 32 * (3 - mar[1:0])
                     2'b01: masterDataIn[31:0] <= writeData[767:736];
                     2'b10: masterDataIn[63:0] <= writeData[767:704];
                     2'b11: masterDataIn[95:0] <= writeData[767:672];
                 endcase
             end
-            else if (state == nonAdjacentWriteLoadMasters) begin
-                masterDataIn <= nonAdjacentMasterDataIn;
+            else if (state == nonAdjacentWriteLoadMasters) begin //if the write is non-adjacent
+                masterDataIn <= nonAdjacentMasterDataIn; //just use the non-adjacent counter as selector bits for the writeData.
             end
 
             if(loadGlobalMemReadRegister) begin
