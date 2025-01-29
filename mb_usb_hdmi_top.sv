@@ -65,16 +65,6 @@ module mb_usb_hdmi_top(
     logic [7:0] red, green, blue;
     logic [9:0] drawX, drawY;
     logic twoHundred;
-//    debugStuff debugStuffInst(
-//        .clk(Clk),
-//        .red(red),
-//        .green(green),
-//        .blue(blue),
-//        .drawX(drawX),
-//        .drawY(drawY),
-//        .twoMHz(twoHundred),
-//        .reset(reset_rtl_0)
-//    );
     
     (* MARK_DEBUG = "TRUE" *) logic ram_init_done_debug;
     assign ram_init_done_debug = ram_init_done_debug;
@@ -83,15 +73,8 @@ module mb_usb_hdmi_top(
     logic [7:0] alexWriteBytes;
     logic [1:0] alexMemEnable;
     logic alexFinishedAction, alexFinishedCommand, alexNewCommand;
-    (* MARK_DEBUG = "TRUE" *) logic [3:0] alexMemReady;
     
-//    (* MARK_DEBUG = "TRUE" *) logic [26:0] cacheAddress;
-//    (* MARK_DEBUG = "TRUE" *) logic [127:0] cacheReadData, cacheWriteData;
-//    (* MARK_DEBUG = "TRUE" *) logic [7:0] cacheWriteBytes;
-//    (* MARK_DEBUG = "TRUE" *) logic cacheMemEnable, cacheMemWriteEnable, cacheFinishedAction;
-//    (* MARK_DEBUG = "TRUE" *) logic oldCache, oldAlexFinishedCommand;
-    
-//     logic [3:0] alexMemReady;
+    (* MARK_DEBUG = "TRUE" *) logic [3:0] alexMemReady; //All of these debug signals are not necessary in the actual design
     
      logic [26:0] cacheAddress;
      logic [127:0] cacheReadData, cacheWriteData;
@@ -102,32 +85,15 @@ module mb_usb_hdmi_top(
     (* MARK_DEBUG = "TRUE" *) logic cacheMemEnableDebug, cacheMemWriteEnableDebug;
     assign cacheMemWriteEnableDebug = cacheMemWriteEnable;
     assign cacheMemEnableDebug = cacheMemEnable;
-//    always_ff @(posedge twoHundred) begin
-//        if(reset_rtl_0) begin
-//            LED <= 0;
-//            oldCache <= 0;
-//            oldAlexFinishedCommand <= 0;
-//        end
-//        else begin
-//            oldCache <= cacheMemEnable;
-//            oldAlexFinishedCommand <= alexFinishedAction;      
-//            if(~oldCache && cacheMemEnable) begin
-//                LED <= cacheAddress[18:3];
-//            end  
-//        end
-//    end
-
     
     mb_block mb_block_i (
         .clk_100MHz(Clk),
-//        .reset_rtl_0(~(reset_rtl_0 || ~ram_init_done)), //Block designs expect active low reset, all other modules are active high
         .reset_rtl_0(~(reset_rtl_0)), //Block designs expect active low reset, all other modules are active high
         .uart_rtl_0_rxd(uart_rtl_0_rxd),
         .uart_rtl_0_txd(uart_rtl_0_txd),
         .drawX_0(drawX),
         .drawY_0(drawY),
-        .alexFinishedAction_0(cacheFinishedAction),
-//        .alexReadData_0(128'h00000000000000000000000000000000),
+        .alexFinishedAction_0(cacheFinishedAction), //these are poorly named, sadly, but these signals communicate with the cores and cache
         .alexReadData_0(cacheReadData),
         .alexAddress_0(cacheAddress),
         .alexWriteData_0(cacheWriteData),
@@ -135,14 +101,6 @@ module mb_usb_hdmi_top(
         .alexMemWriteEnable_0(cacheMemWriteEnable),
         .alexWriteBytes_0(cacheWriteBytes)
     );
-//    always_comb begin
-//        cacheAddress = 0;
-//        cacheWriteData = 0;
-//        cacheMemEnable = 0;
-//        cacheMemWriteEnable = 0;
-//        cacheWriteBytes = 0;
-//    end
-
 
     rtl_ddr3_top rtl_ddr3_top_Inst(
         .ddr3_addr(ddr3_addr),
@@ -164,15 +122,14 @@ module mb_usb_hdmi_top(
         .ram_init_done(ram_init_done),
         
         .clk_ref_i(Clk), //IM GOING TO USE FASTCLOCK ON THIS WHICH SHOULD BE 200MHZ
-        .sys_rst(reset_rtl_0), //I think it expects a high reset input. Not totally sure though.
+        .sys_rst(reset_rtl_0), //I think it expects a high reset input
         
-        
-        .sd_sclk(sd_sclk),
-        .sd_mosi(sd_mosi),
+        .sd_sclk(sd_sclk), //SD card signals
+        .sd_mosi(sd_mosi), 
         .sd_cs(sd_cs),
         .sd_miso(sd_miso),
         
-        .alexAddress(alexAddress),
+        .alexAddress(alexAddress), //signals from the memoryController module
         .alexWriteData(alexWriteData),
         .alexReadData(alexReadData),
         .alexMemEnable(alexMemEnable),
@@ -181,24 +138,21 @@ module mb_usb_hdmi_top(
         .alexMemReady(alexMemReady),
         .alexFinishedCommand(alexFinishedCommand),
         .alexNewCommand(alexNewCommand),
-        .otherClock(twoHundred)
+        .otherClock(twoHundred) //This is the output UI clock. This is what all of the modules outside of the MB_block run at
 
     );
         
     videoController videoControllerInst(
         .clk(Clk),
         .reset(reset_rtl_0),
-        .red(red),
+        .red(red), //input colors requested
         .green(green),
         .blue(blue),
-//        .red(4'h0),
-//        .green(4'h0),
-//        .blue(4'h0),
-        .hdmi_clk_n(hdmi_tmds_clk_n),
+        .hdmi_clk_n(hdmi_tmds_clk_n), //output hdmi valuels
         .hdmi_clk_p(hdmi_tmds_clk_p),
         .hdmi_tx_n(hdmi_tmds_data_n),
         .hdmi_tx_p(hdmi_tmds_data_p),
-        .drawX(drawX),
+        .drawX(drawX), //output drawX and drawY
         .drawY(drawY)
     );    
     
@@ -206,32 +160,21 @@ module mb_usb_hdmi_top(
     memoryController memoryControllerInst(
         .clk(twoHundred),
         .reset(reset_rtl_0),
-        
-//        .cacheDataWrite(128'hFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF),
+        //data from the cores
         .cacheDataWrite(cacheWriteData),
-
         .cacheAddress(cacheAddress),
         .cacheDataRead(cacheReadData),
         .cacheEnableGlobal(cacheMemEnable),
         .cacheEnableGlobalWrite(cacheMemWriteEnable),
         .cacheWriteBytes(cacheWriteBytes),
         .cacheFinishedAction(cacheFinishedAction),
-        //from the cachce
         //from the vga controller
         .drawX(drawX),
-        .drawY(drawY),
-        // input logic chooseBuffer,
-    
+        .drawY(drawY),    
         //obvious
-        
-        
-        
         .red(red),
         .green(green),
         .blue(blue),
-
-
-
         //talks to the ddr3
         .alexAddress(alexAddress),
         .alexReadData(alexReadData),
