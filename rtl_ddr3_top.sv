@@ -7,11 +7,8 @@
 //Useful for porting various emulation designs to the Urbana board
 //Note that the student must set up the MIG configuration according to the
 //Using DDR3 MIG for RTL Designs document from the ECE 385 materials.
-//
 
 module rtl_ddr3_top (
-//   (input  logic sys_clk_n, //differential system clock input
-//    input  logic sys_clk_p, //note that this is different than previous designs
     output logic [12:0] ddr3_addr,
     output logic [2:0] ddr3_ba,
     output logic ddr3_cas_n,
@@ -34,15 +31,7 @@ module rtl_ddr3_top (
     output logic        sd_mosi,
     output logic        sd_cs,
     input logic         sd_miso,
-    
-    //HEX displays
-//    output logic [7:0]  hex_segA,
-//    output logic [7:0]  hex_segB,
-//    output logic [3:0]  hex_gridA,
-//    output logic [3:0]  hex_gridB,
-    
-    //Switches
-//    input logic [15:0]  SW,
+    //signals to control input and output to DDR3
     input logic [26:0] alexAddress,
     input logic [127:0] alexWriteData,
     output logic [127:0] alexReadData,
@@ -54,13 +43,10 @@ module rtl_ddr3_top (
     output logic alexFinishedCommand,
     
     output logic        ram_init_error,
-    output logic        ram_init_done,
-    output logic otherClock
-    
-    //LEDs
-//    output logic[15:0]  LED
+    output logic        ram_init_done, //signals when the ram is finished initializing
+    output logic 	otherClock //output clock for ui_clk
     );
-    //logic [16:0]  sw_i;
+	
     localparam ADDR_WIDTH = 27;
     localparam APP_DATA_WIDTH = 64;
     localparam APP_MASK_WIDTH = 8;
@@ -188,7 +174,7 @@ module rtl_ddr3_top (
        .ram_wdf_mask(ram_reader_wdf_mask), 
        .ram_wdf_rdy(app_wdf_rdy),
        
-       .alexAddress(alexAddress),
+	   .alexAddress(alexAddress), //percolate these signals into ram_reader
        .alexWriteData(alexWriteData),
        .alexReadData(alexReadData),
        .alexFinishedAction(alexFinishedMemory),
@@ -201,26 +187,14 @@ module rtl_ddr3_top (
     );
 
     assign app_addr = ram_init_done ? app_rd_addr : app_wr_addr; //MUX shared RAM control signals 
-    assign app_en   = ram_init_done ? app_rd_en : app_wr_en;     //between write logic and read
-    assign app_cmd  = ram_init_done ? app_rd_cmd : app_wr_cmd;   //logic
+    assign app_en   = ram_init_done ? app_rd_en : app_wr_en;     //between write logic and memoryController signals
+    assign app_cmd  = ram_init_done ? app_rd_cmd : app_wr_cmd;   //depending on when the ram is finished loading from the SD card
     assign app_wdf_data = ram_init_done ? ram_reader_write_data : sd_ram_wdf_data;
     assign app_wdf_end = ram_init_done ? ram_reader_wdf_end : sd_ram_wdf_end;
     assign app_wdf_wren = ram_init_done ? ram_reader_wdf_wren : sd_ram_wdf_wren;
-    assign app_wdf_mask = ram_init_done ? (~ram_reader_wdf_mask) : 8'h00;
-
-//    assign app_wdf_mask = 8'h00;
-
+	assign app_wdf_mask = ram_init_done ? (~ram_reader_wdf_mask) : 8'h00; //invert the mask because a mask equaling 1 means it isn't written to
+	
     assign otherClock = ui_clk;
-//    hex_driver hexA   (.clk(ui_clk), 
-//                      .reset(ui_sync_rst),
-//                      .in({SW[15:12], SW[11:8], SW[7:4], SW[3:0]}),
-//                      .hex_seg(hex_segA),
-//                      .hex_grid(hex_gridA));
- 
-//    hex_driver hexB   (.clk(ui_clk), 
-//                      .reset(ui_sync_rst),
-//                      .in({read_data_display[15:12], read_data_display[11:8], read_data_display[7:4], read_data_display[3:0]}),
-//                      .hex_seg(hex_segB),
-//                      .hex_grid(hex_gridB));
+
 
 endmodule
