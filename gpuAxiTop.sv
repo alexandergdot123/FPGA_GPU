@@ -252,7 +252,7 @@ begin
           if ( S_AXI_WSTRB[byte_index] == 1 ) begin
             // Respective byte enables are asserted as per write strobes, note the use of the index part select operator
             // '+:', you will need to understand how this operator works.
-            slv_regs[4][(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8];
+              slv_regs[4][(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8]; //Only write to slv_regs[4], which is where I will store new instructions
           end  
       end
   end
@@ -359,7 +359,7 @@ assign slv_reg_rden = axi_arready & S_AXI_ARVALID & ~axi_rvalid;
 always_comb
 begin
       // Address decoding for reading registers
-     reg_data_out = slv_regs[axi_araddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB]];
+    reg_data_out = slv_regs[axi_araddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB]];
 end
 
 // Output register or memory read data
@@ -411,20 +411,20 @@ end
     logic coresReady, sentInstructionToCores;
     logic [31:0] instructionBufferOut;
     
-    instructionBuffer instructionBufferInst(
+    instructionBuffer instructionBufferInst( //Instruction Buffer Implementation
         .clk(clk),
         .reset(activeHighReset),
         .coresReady(coresReady),
 
-        .newInstruction(S_AXI_BVALID),
-        .instructionIn(slv_regs[4]),
-        .instructionOut(instructionBufferOut),
-        .bufferFill(bufferFillOut),
-        .sentInstruction(sentInstructionToCores)
+        .newInstruction(S_AXI_BVALID), //Signals when a new instruction is ready to be received
+        .instructionIn(slv_regs[4]), //the new instruction is located in register 4.
+        .instructionOut(instructionBufferOut), //the output instruction to send to the cores
+        .bufferFill(bufferFillOut), //A five-bit value signaling how many instructions the buffer currently has stored
+        .sentInstruction(sentInstructionToCores) 
     ); 
     
 
-    gpuLinker gpuLinkerInst(
+    gpuLinker gpuLinkerInst( //instantiation of the cores and the cache
         .clk(clk),
         .reset(activeHighReset),
         .instruction(instructionBufferOut),
@@ -440,55 +440,17 @@ end
         .globalMemFinishedAction(alexFinishedAction)
         
     );
-//    logic oldWritingMemoryDataGlobal, oldReadingMemoryDataGlobal, writingMemoryDataGlobal, readingMemoryDataGlobal;
-//    always_ff @(posedge clk) begin
-//        oldWritingMemoryDataGlobal <= writingMemoryDataGlobal;
-//        oldReadingMemoryDataGlobal <= readingMemoryDataGlobal;
-//    end
-    
-//    logic [7:0] writeBytesDummy;
-//    logic dummyWritingMemoryShared, dummyReadingMemoryShared;
-    
-    
-//    assign alexMemEnable = (~oldWritingMemoryDataGlobal && writingMemoryDataGlobal) || (~oldReadingMemoryDataGlobal && readingMemoryDataGlobal);
+
     (* MARK_DEBUG = "TRUE" *) logic executeInstructionDebug;
     (* MARK_DEBUG = "TRUE" *) logic [3:0] topOfNewInstructionSent;
     assign executeInstructionDebug = sentInstructionToCores;
     assign topOfNewInstructionSent = instructionBufferOut[31:28];
-//    gpuCore coreInst(
-    
-//    .instruction(instructionBufferOut),
-//    .executeInstruction(sentInstructionToCores),
-//    .clk(clk),
-//    .threadId(32'h0000000D),
-//    .reset(activeHighReset),
-//    .finishedReadMemoryDataShared(1'b1),
-//    .finishedReadMemoryDataGlobal(alexFinishedAction),
-//    .finishedWriteMemoryDataShared(1'b1),
-//    .finishedWriteMemoryDataGlobal(alexFinishedAction),
-    
-//    .MDRIn(alexReadData[31:0]),
-//    .readyForNextInstruction(coresReady),
-//    .writingMemoryDataGlobal(writingMemoryDataGlobal),
-//    .readingMemoryDataGlobal(readingMemoryDataGlobal),
-//    .writingMemoryDataShared(dummyWritingMemoryShared),
-//    .readingMemoryDataShared(dummyReadingMemoryShared),
-//    .marOut(alexAddress),
-//    .mdrOut(alexWriteData[31:0])
-//);
-//    assign alexWriteData[127:32] = 96'hFFFFFFFFFFFFFFFFFFFFFFFF;
-    
-    
-    always_ff @(posedge S_AXI_ACLK) begin
-        slv_regs[0] <= {22'h000000, drawX[9:0]};
-        slv_regs[1] <= {22'h000000, drawY[9:0]};
-        slv_regs[2] <= systemTime;
-        slv_regs[3] <= {27'h0000000, bufferFillOut};
-    end
-    
-    
-    
-    
 
+    always_ff @(posedge S_AXI_ACLK) begin
+        slv_regs[0] <= {22'h000000, drawX[9:0]}; //contains the value of drawX
+        slv_regs[1] <= {22'h000000, drawY[9:0]}; //contains the value of drawY
+        slv_regs[2] <= systemTime; //contains the 32-bit systemTime in microseconds
+        slv_regs[3] <= {27'h0000000, bufferFillOut}; //contains how many instructions the buffer has stored
+    end
     
 endmodule
