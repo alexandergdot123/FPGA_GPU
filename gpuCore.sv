@@ -161,24 +161,23 @@ module gpuCore(
                 mdr <= (externalMdrGate) ? MDRIn : mainBus; //if externalMDRGate is 1, then get the MDR value from external to the module
             end
 
-            mar <= (loadMar) ? mainBus : mar;
+            mar <= (loadMar) ? mainBus : mar; 
 
             if(state == StoreGlobalImmediate1) begin
-                writeBits <= IR[19:18];
+                writeBits <= IR[19:18]; //currently unused in design. In the future this is potentially implementable. 
             end
             else if (state == StoreGlobalReg1) begin
-                writeBits <= IR[16:15];
+                writeBits <= IR[16:15]; //currently unused in design. In the future this is potentially implementable. 
             end
         end
     end
 
     always_comb begin
-        writeBytes = writeBits;
-        countdownOn = |countdown;
-        multOut = multInReg1 * multInReg2;
-//        addInAddInstruction = (((IR[21]) ? {{16{1'b0}}, IR[15:0]} : SR2Out) ^ {32{IR[20]}}) + {{31{1'b0}}, IR[20]}; //this no longer sign extends the immediate value
-        addInAddInstruction = (IR[21]) ? {16'h0000, IR[15:0]} : SR2Out;
-        case(state)
+        writeBytes = writeBits; //currently unused
+        countdownOn = |countdown; //whether countdown is on or not 
+        multOut = multInReg1 * multInReg2; //The multiplication instruction operation
+        addInAddInstruction = (IR[21]) ? {16'h0000, IR[15:0]} : SR2Out; //For additions, choosing between SR2 and immediate values
+        case(state) //all possible values for addition when adding together two sources for the memory address
             LoadSharedReg2: addInMemInstruction = SR2Out;
             LoadSharedImmediate2: addInMemInstruction = {{10{IR[21]}},IR[21:0]};
             LoadGlobalReg2: addInMemInstruction = SR2Out;
@@ -189,11 +188,10 @@ module gpuCore(
             StoreGlobalReg2: addInMemInstruction = SR2Out;
             default: addInMemInstruction = 32'hxxxxxxxx;
         endcase
-        addIn2 = (state == Add2) ? addInAddInstruction : addInMemInstruction;
-//        addOut = SR1Out + addIn2;
-        addOut = (state == Add2 && IR[20]) ? (SR1Out - addIn2) : (SR1Out + addIn2);
+        addIn2 = (state == Add2) ? addInAddInstruction : addInMemInstruction; //Whether to add the addition operation or to add the memory values
+        addOut = (state == Add2 && IR[20]) ? (SR1Out - addIn2) : (SR1Out + addIn2); // If addition and subtraction bit is high, subtract - else, add
 
-        case(IR[21:18])
+        case(IR[21:18]) //the result of bitshifting depending on the quantity of bitshift requested
             4'b0000: bitShiftOut = {1'b0, SR1Out[31:1]};
             4'b0001: bitShiftOut = {2'b0, SR1Out[31:2]};
             4'b0010: bitShiftOut = {4'b0, SR1Out[31:4]};
@@ -208,19 +206,19 @@ module gpuCore(
             4'b1101: bitShiftOut = {SR1Out[7:0], 24'b0};
             default: bitShiftOut = SR1Out;
         endcase
-        case(IR[21:20])
+        case(IR[21:20]) //the bitwise operation depending on whether the value is immediate and whether the value is AND or OR
             2'b00: bitwiseOut = SR1Out & SR2Out;
             2'b01: bitwiseOut = SR1Out & {{16{IR[19]}}, IR[15:0]};
             2'b10: bitwiseOut = SR1Out | SR2Out;
             2'b11: bitwiseOut = SR1Out | {{16{IR[19]}}, IR[15:0]};
         endcase
-        comparatorInput2 = (state == CompareDual2) ? SR2Out : {{16{IR[15]}}, IR[15:0]};
-        comparatorOut = SR1Out - comparatorInput2;
-        comparatorNegative = comparatorOut[31];
-        comparatorZero = !(|comparatorOut);
-        comparatorPositive = ~(comparatorZero | comparatorNegative);
-        skipLines = (comparatorNegative & ~IR[25]) | (comparatorZero & ~IR[26]) | (comparatorPositive & ~IR[27]);
-        readyForNextInstruction = state == Decode;
+        comparatorInput2 = (state == CompareDual2) ? SR2Out : {{16{IR[15]}}, IR[15:0]}; //The input to the comparator depending on whether reg-reg operation or immediate
+        comparatorOut = SR1Out - comparatorInput2; //Subtracting register 1 from comparator Input
+        comparatorNegative = comparatorOut[31]; //If the value is negative, then it is negative 
+        comparatorZero = !(|comparatorOut); //If the comparator is all equal to zero, then not it and it equals zero
+        comparatorPositive = ~(comparatorZero | comparatorNegative); //If it is neitehr comparatorZero or comparatorNegative, then it is positive
+        skipLines = (comparatorNegative & ~IR[25]) | (comparatorZero & ~IR[26]) | (comparatorPositive & ~IR[27]); //Match skipLines to results ANDED together
+        readyForNextInstruction = state == Decode; //the core is ready for the next instruction if it is in the Decode state
     end
 
 
