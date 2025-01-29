@@ -249,146 +249,145 @@ module gpuCore(
             Decode: begin
             end
             Add1: begin
-                chooseSR1 = IR[24:22];
+                chooseSR1 = IR[24:22]; //ask for SR1 and SR2
                 chooseSR2 = IR[19:17];
             end
             Add2: begin
                 loadReg = 1; // Load result into register
                 gateAddOut = 1; // Enable ALU add output
-                chooseDR = IR[27:25];
+                chooseDR = IR[27:25]; //save the result of the addition into the register file
             end
             Bitwise1: begin
-                chooseSR1 = IR[24:22];
+                chooseSR1 = IR[24:22]; //ask for SR1 and SR2
                 chooseSR2 = IR[19:17];
             end
             Bitwise2: begin
                 loadReg = 1; // Load result into register
                 gateBitwiseOut = 1; // Enable bitwise operation output
-                chooseDR = IR[27:25];
+                chooseDR = IR[27:25]; //save the result of the bitwise operation into the register file
             end
             Multiply1: begin
-                chooseSR1 = IR[24:22];
+                chooseSR1 = IR[24:22]; //ask for SR1 and SR2
                 chooseSR2 = IR[19:17];
             end
             Multiply4: begin
-                loadReg = 1; // Load result into register
+                loadReg = 1; // Load multipliation result into register
                 gateMultOut = 1; // Enable multiplier output
-                chooseDR = IR[27:25];
+                chooseDR = IR[27:25]; //save the result of the multiplication into the register file
             end
             BitShift1: begin
-                chooseSR1 = IR[24:22];
+                chooseSR1 = IR[24:22]; //ask for SR1
             end
             BitShift2: begin
                 loadReg = 1; // Load result into register
                 gateBitshiftOut = 1; // Enable bit shift output
-                chooseDR = IR[27:25];
+                chooseDR = IR[27:25]; //save the result of the bitshift operation into the register file
             end
             CompareImmediate1: begin
-                chooseSR1 = IR[18:16];
+                chooseSR1 = IR[18:16]; //ask for SR1
             end
             CompareDual1: begin
-                chooseSR1 = IR[18:16];
+                chooseSR1 = IR[18:16]; //ask for SR1 and SR2
                 chooseSR2 = IR[15:13];
             end
-            CompareImmediate2: begin
+            CompareImmediate2: begin //all comparator values are handled separately
             
             end
-            CompareDual2: begin
+            CompareDual2: begin //all comparator values are handled separately
             
             end
             LoadSharedImmediate1: begin
-                chooseSR1 = IR[24:22];
+                chooseSR1 = IR[24:22]; //ask for SR1
             end
             LoadSharedReg1: begin
-                chooseSR1 = IR[24:22];
+                chooseSR1 = IR[24:22]; //ask for SR1 and SR2
                 chooseSR2 = IR[21:19];
             end
             LoadGlobalImmediate1: begin
-                chooseSR1 = IR[24:22];
+                chooseSR1 = IR[24:22]; //ask for SR1
             end
             LoadGlobalReg1: begin
-                chooseSR1 = IR[24:22];
+                chooseSR1 = IR[24:22]; //ask for SR1 and SR2
                 chooseSR2 = IR[21:19];
             end
             StoreSharedImmediate1: begin
-                chooseSR1 = IR[24:22];
+                chooseSR1 = IR[24:22]; //ask for SR1
             end
             StoreSharedReg1: begin
-
-                chooseSR1 = IR[24:22];
+                chooseSR1 = IR[24:22]; //ask for SR1 and SR2
                 chooseSR2 = IR[21:19];
             end
             StoreGlobalImmediate1: begin
-                chooseSR1 = IR[24:22];
+                chooseSR1 = IR[24:22]; //ask for SR1
             end
             StoreGlobalReg1: begin
-                chooseSR1 = IR[24:22];
+                chooseSR1 = IR[24:22]; //ask for SR1 and SR2
                 chooseSR2 = IR[21:19];
             end
             LoadSharedImmediate2: begin
                 loadMar = 1; // Load address into MAR
-                gateAddOut = 1;
+                gateAddOut = 1; //ungate the addition result
             end
             LoadSharedReg2: begin
                 loadMar = 1; // Load memory data register
-                gateAddOut = 1; 
+                gateAddOut = 1;  //ungate the addition result
             end
             LoadGlobalImmediate2: begin
                 loadMar = 1; // Load global address into MAR
-                gateAddOut = 1; 
+                gateAddOut = 1;  //ungate the addition result
             end
             LoadGlobalReg2: begin
                 loadMar = 1; // Load global data into MDR
-                gateAddOut = 1; 
+                gateAddOut = 1;  //ungate the addition result
             end
             StoreSharedImmediate2: begin
                 loadMar = 1; // Load address into MAR
-                gateAddOut = 1; 
-                chooseSR1 = IR[27:25];
+                gateAddOut = 1;  //ungate the addition result
+                chooseSR1 = IR[27:25]; //Get writeData from the register file
             end
             StoreSharedReg2: begin
                 loadMar = 1; // Load address into MAR
-                gateAddOut = 1; 
-                chooseSR1 = IR[27:25];
+                gateAddOut = 1;  //ungate the addition result
+                chooseSR1 = IR[27:25]; //Get writeData from the register file
             end
             StoreGlobalImmediate2: begin
                 loadMar = 1; // Load address into MAR
-                gateAddOut = 1; 
-                chooseSR1 = IR[27:25];
+                gateAddOut = 1;  //ungate the addition result
+                chooseSR1 = IR[27:25]; //Get writeData from the register file
             end
             StoreGlobalReg2: begin
                 loadMar = 1; // Load address into MAR
-                gateAddOut = 1; 
-                chooseSR1 = IR[27:25];
+                gateAddOut = 1;  //ungate the addition result
+                chooseSR1 = IR[27:25]; //Get writeData from the register file
             end
             StoreMemoryDataShared: begin
-                loadMdr = 1;
+                loadMdr = 1; //load the writeData into MDR
                 gateSR1Out = 1; 
             end
             StoreMemoryDataGlobal: begin
-                loadMdr = 1;
+                loadMdr = 1; //load the writeData into MDR
                 gateSR1Out = 1; 
             end
             WriteMemoryDataShared: begin
-                writingMemoryDataShared = 1;
+                writingMemoryDataShared = 1; //signal to scratchpad memory to write data
             end
             WriteMemoryDataGlobal: begin
-                writingMemoryDataGlobal = 1;
+                writingMemoryDataGlobal = 1; //signal to ddr3 to write data
             end
             ReadMemoryDataShared: begin
-                readingMemoryDataShared = 1;
-                externalMdrGate = 1;
+                readingMemoryDataShared = 1; //signal to scratchpad memory to read data
+                externalMdrGate = 1; //load MDR externally
                 loadMdr = 1;
             end
             ReadMemoryDataGlobal: begin
-                readingMemoryDataGlobal = 1;
-                externalMdrGate = 1;
+                readingMemoryDataGlobal = 1; //signal to DDR3 to read data
+                externalMdrGate = 1; //load MDR externally
                 loadMdr = 1;
             end
-            StoreReadMemoryData: begin
-                loadReg = 1;
+            StoreReadMemoryData: begin //store read data from memory into register file
+                loadReg = 1; //load the register file
                 gateMdrOut = 1;
-                chooseDR = IR[27:25];
+                chooseDR = IR[27:25]; //store the value read from memory
             end
             default: begin
 
@@ -398,53 +397,53 @@ module gpuCore(
         marOut = mar;
         mdrOut = mdr;
            
-        case (1'b1)
-            gateMultOut: mainBus = multOutReg;
+        unique case (1'b1) //values to load the bus with
+            gateMultOut: mainBus = multOutReg; 
             gateBitwiseOut: mainBus = bitwiseOut;
             gateBitshiftOut: mainBus = bitShiftOut;
             gateAddOut: mainBus = addOut;
             gateMdrOut: mainBus = mdr;
             gateSR1Out: mainBus = SR1Out;
-            default: mainBus = 32'hXXXX;
+            default: mainBus = 32'hXXXXXXXX;
         endcase
     end
 
 endmodule
 
 
-module regFile(
+module regFile( //This module may be able to be rewritten into simple dual-port. It doesn't prevent a user from writing a bad value into R7
     input logic clk,
     input logic loadReg,
     input logic [2:0] sr1,
     input logic [2:0] sr2,
     input logic [2:0] dr,
-    input logic [31:0] threadID,
+    input logic [31:0] threadID, //number reset at register 7
     input logic [31:0] dataIn,
     input logic reset,
     output logic [31:0] sr1Out,
     output logic [31:0] sr2Out
 );
-    logic [2:0] addr1, addr2;
+    logic [2:0] addr1, addr2; //modification of register addresses for resets
     logic [31:0] dataInModified;
     blk_mem_gen_0 u_blk_mem_gen_0 (
         .clka  (clk),      
-        .ena   (1'b1),       
-        .wea   ((loadReg | reset)),        
+        .ena   (1'b1), //always enable, either for reads or writes
+        .wea   ((loadReg | reset)), //On reset, load register 7 with threadID       
         .addra (addr1),    
         .dina  (dataInModified),    
         .douta (sr1Out),   
     
         .clkb  (clk), 
-        .enb   (1'b1),        
-        .web   ((loadReg | reset)),    
+        .enb   (1'b1), //always enable, either for reads or writes
+        .web   ((loadReg | reset)),     //On reset, load register 7 with threadID     
         .addrb (addr2),
-        .dinb(dataInModified),
+        .dinb  (dataInModified),
         .doutb (sr2Out)
     );
     always_comb begin
-        addr1 = (reset) ? 3'b111 : ((loadReg) ? dr : sr1);
+        addr1 = (reset) ? 3'b111 : ((loadReg) ? dr : sr1); //If the value is on reset, address equals reg7. Otherwise, if loadReg, set to DR.
         addr2 = (reset) ? 3'b111 : ((loadReg) ? dr : sr2);
 
-        dataInModified = (reset) ? threadID : dataIn;
+        dataInModified = (reset) ? threadID : dataIn; //if on reset, store threadID into the register file.
     end
 endmodule
