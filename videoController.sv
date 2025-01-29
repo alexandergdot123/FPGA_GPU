@@ -38,10 +38,7 @@ module videoController(
         .drawX(drawX),
         .drawY(drawY)
     );    
-//    assign hdmi_clk_p = 1'b1;
-//    assign hdmi_clk_n = 1'b1;
-//    assign hdmi_tx_p = 3'b111;
-//    assign hdmi_tx_n = 3'b111;
+
     //Real Digital VGA to HDMI converter
     hdmi_tx_0 vga_to_hdmi (
         //Clocking and Reset
