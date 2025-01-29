@@ -42,11 +42,6 @@ module ram_reader(
     assign ram_rd_data_copy = ram_rd_data;
     logic [127:0] data_burst; // Temporary storage for read data
     assign alexReadData = data_burst; // Provide the full read burst data to Alex's interface
-//    assign ram_wdf_mask[1:0] = alexWriteBytes[7:6]; // No write masking (all bytes valid)
-//    assign ram_wdf_mask[3:2] = alexWriteBytes[5:4]; // No write masking (all bytes valid)
-//    assign ram_wdf_mask[5:4] = alexWriteBytes[3:2]; // No write masking (all bytes valid)
-//    assign ram_wdf_mask[7:6] = alexWriteBytes[1:0]; // No write masking (all bytes valid)
-//    assign ram_wdf_mask = alexWriteBytes;
     logic ram_rdy_old, ram_rd_valid_old, ram_rd_data_end_old;
     
 
@@ -58,13 +53,10 @@ module ram_reader(
     
         if (reset) begin
             ram_cmd <= 3'b000;
-//            ram_en <= 1'b0;
             data_burst <= 'h0;
             alexFinishedAction <= 0;
             writeState <= 3'b000;
             ram_wdf_data <= 0;
-//            ram_wdf_wren <= 0;
-//            ram_wdf_end <= 0;
             counter <= 0;
         end 
         else begin
@@ -74,8 +66,7 @@ module ram_reader(
             else begin
                 counter <= 0;
             end
-        
-        
+            
             case(writeState)
                 3'b000: writeState <= (alexNewCommand && alexMemEnable == 2'b10 && ram_rdy) ? 3'b001: 3'b000;
                 3'b001: writeState <= (ram_rdy) ? 3'b010 : 3'b001;
@@ -91,7 +82,6 @@ module ram_reader(
             endcase
             // Handle reads
             if(alexMemEnable == 2'b00) begin
-//                ram_en <= 1'b0;
                 alexFinishedCommand <= 0;
                 alexFinishedAction <= 0;
                 readState <= 2'b00;
@@ -99,13 +89,11 @@ module ram_reader(
             end
             else if (alexMemEnable == 2'b01) begin //This signifies a read
                 if(ram_rdy && alexNewCommand && readState == 2'b00) begin
-//                    ram_en <= 1;
                     ram_cmd <= 3'b001;
                     ram_address <= {alexAddress[26:3], 3'b000};
                     alexFinishedCommand <= 1;
                 end
                 else begin
-//                    ram_en <= 0;
                     alexFinishedCommand <= 0;
                 end               
                 
@@ -123,38 +111,24 @@ module ram_reader(
             end
             else if (alexMemEnable == 2'b10) begin //This is going to be writes.
                 if(writeState == 3'b000 && alexNewCommand && ram_rdy) begin
-//                    ram_en <= 1;
                     ram_cmd <= 3'b000;
                     ram_address <= {alexAddress[26:3], 3'b000};
-//                    ram_wdf_end <= 0;
-//                    ram_wdf_wren <= 0;
                     alexFinishedCommand <= 0;
                     alexFinishedAction <= 0;
                 end
                 else if (writeState == 3'b001) begin
-//                    ram_en <= 0;
-//                    ram_wdf_wren <= 1;
                     ram_wdf_data <= alexWriteData[127:64];
-//                    ram_wdf_end <= 0;
                 end
                 else if (writeState == 3'b010 && ram_wdf_rdy) begin
-//                    ram_en <= 0;
-//                    ram_wdf_wren <= 1;
-//                    ram_wdf_end <= 1;
                     ram_wdf_data <= alexWriteData[63:0];
                     alexFinishedAction <= 0;
                     alexFinishedCommand <= 0;
                 end
                 else if (writeState == 3'b011) begin
-////                    ram_en <= 0;
-//                    ram_wdf_wren <= 0;
-//                    ram_wdf_end <= 0;
                     alexFinishedAction <= 1;
                     alexFinishedCommand <= 1;                
                 end
                 else if (writeState == 3'b100) begin
-//                    ram_wdf_wren <= 0;
-//                    ram_wdf_end <= 0;
                     alexFinishedAction <= 0;
                     alexFinishedCommand <= 0;        
                 end
