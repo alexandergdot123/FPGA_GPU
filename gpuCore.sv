@@ -8,22 +8,22 @@ module gpuCore(
     input logic finishedReadMemoryDataGlobal,
     input logic finishedWriteMemoryDataShared,
     input logic finishedWriteMemoryDataGlobal,
-    input logic [31:0] MDRIn,
-    output logic readyForNextInstruction,
-    output logic writingMemoryDataShared,
-    output logic writingMemoryDataGlobal,
-    output logic readingMemoryDataShared,
-    output logic readingMemoryDataGlobal,
-    output logic [31:0] marOut,
-    output logic [31:0] mdrOut
+    input logic [31:0] MDRIn, //the data read from a memory
+    output logic readyForNextInstruction, //whether or not the GPU core is currently in the Decode state
+    output logic writingMemoryDataShared, //whether or not the gpu is waiting for the memory to finish writing to scratchpad
+    output logic writingMemoryDataGlobal, //whether or not the gpu is waiting for the memory to finish writing to DDR3/cache
+    output logic readingMemoryDataShared, //whether or not the gpu is waiting for the memory to finish reading from scratchpad
+    output logic readingMemoryDataGlobal, //whether or not the gpu is waiting for the memory to finish reading from DDR3/cache
+    output logic [31:0] marOut, //the address to write to/read from
+    output logic [31:0] mdrOut //the data to write
 );
     logic [1:0] writeBytes;
     import gpuCoreTypes::*; // Import the package
 
-    state_t state;
+    state_t state; //current state of the core
     
     
-    function state_t getState();
+    function state_t getState(); //debugging purposes
         return state;
     endfunction
     
@@ -38,7 +38,7 @@ module gpuCore(
     logic loadReg, loadMar, loadMdr, gateMultOut, gateBitwiseOut, gateBitshiftOut, gateAddOut, 
         gateMdrOut, loadIR, gateSR1Out, externalMdrGate, loadAdder, loadMultiplier, loadBitwise, loadBitshift; 
     logic [1:0] writeBits;
-    regFile regFileInst(
+    regFile regFileInst( //instantiation of the register file
         .reset(reset),
         .clk(clk), 
         .loadReg(loadReg),
@@ -48,12 +48,12 @@ module gpuCore(
         .dataIn(mainBus),
         .sr1Out(SR1Out),
         .sr2Out(SR2Out),
-        .threadID(threadId)
+        .threadID(threadId) //the threadID is hardwired to register 7
     );
 
     always_ff @(posedge clk) begin
         if (reset) begin
-            state <= Decode;
+            state <= Decode; //defaults to Decode state, or Idle state
             IR <= 0;
             countdown <= 0;
             mar <= 0;
@@ -66,15 +66,15 @@ module gpuCore(
             bitwiseOutReg <= 0;
         end
         else begin
-            multInReg1 <= SR1Out;
-            multInReg2 <= ((IR[21]) ? {{16{IR[15]}},IR[15:0]} : SR2Out);
-            multOutReg <= multOut;
-            bitShiftOutReg <= bitShiftOut;
-            bitwiseOutReg <= bitwiseOut;
+            multInReg1 <= SR1Out; //multInReg1 is a pipelines source for multiplication
+            multInReg2 <= ((IR[21]) ? {{16{IR[15]}},IR[15:0]} : SR2Out); //pipelined, multiplexed from Immediate versus output of SR2
+            multOutReg <= multOut; //the pipelined output of multiplication
+            bitShiftOutReg <= bitShiftOut; //pipelined output of bitshift operations
+            bitwiseOutReg <= bitwiseOut; //pipelined output of bitwise operations
             //state transitions
-            if(state == Decode && executeInstruction && !countdownOn) begin
-                IR <= instruction;
-                case(instruction[31:28])
+            if(state == Decode && executeInstruction && !countdownOn) begin //If a new instruction has been received and the core is Idle
+                IR <= instruction; //store the new instruction, also only works if there has been no comparison operators turning off the core
+                case(instruction[31:28]) //opcodes to decode from
                     4'b0000: state <= Add1;
                     4'b0001: state <= Bitwise1;
                     4'b0010: state <= Multiply1;
@@ -94,65 +94,65 @@ module gpuCore(
             end
             else begin
                 unique case(state)
-                    Add1: state <= Add2;
-                    Bitwise1: state <= Bitwise2;
-                    Multiply1: state <= Multiply2;
-                    BitShift1: state <= BitShift2;
-                    Add2: state <= Decode;
+                    Add1: state <= Add2; //addition is fast, so there is no need to pipeline more than once
+                    Bitwise1: state <= Bitwise2; //same with bitwise operations
+                    Multiply1: state <= Multiply2; //multiplication is pipelined into four cycles
+                    BitShift1: state <= BitShift2; //bitshifting only requires 2 pipeline cycles
+                    Add2: state <= Decode; 
                     Bitwise2: state <= Decode;
                     Multiply2: state <= Multiply3;
-                    Multiply3: state <= Multiply4;
-                    Multiply4: state <= Decode;
+                    Multiply3: state <= Multiply4; 
+                    Multiply4: state <= Decode; //Four total multiplication cycles
 
-                    BitShift2: state <= Decode;
-                    CompareImmediate1: state <= CompareImmediate2;
-                    CompareDual1: state <= CompareDual2;
-                    CompareImmediate2: state <= Decode;
-                    CompareDual2: state <= Decode;
+                    BitShift2: state <= Decode; 
+                    CompareImmediate1: state <= CompareImmediate2; //For comparisons, only two cycles are needed
+                    CompareDual1: state <= CompareDual2;  //This is with two registers to compare
+                    CompareImmediate2: state <= Decode; //This is with 1 register to compare to an immediate value
+                    CompareDual2: state <= Decode; 
                     
-                    LoadSharedImmediate1: state <= LoadSharedImmediate2;
-                    LoadGlobalImmediate1: state <= LoadGlobalImmediate2;
-                    LoadSharedReg1: state <= LoadSharedReg2;
-                    LoadGlobalReg1: state <= LoadGlobalReg2;
+                    LoadSharedImmediate1: state <= LoadSharedImmediate2; //First state to activate register file
+                    LoadGlobalImmediate1: state <= LoadGlobalImmediate2; //First state to activate register file
+                    LoadSharedReg1: state <= LoadSharedReg2;  //First state to activate register file
+                    LoadGlobalReg1: state <= LoadGlobalReg2; //First state to activate register file
                     
-                    LoadSharedImmediate2: state <= ReadMemoryDataShared;
-                    LoadGlobalImmediate2: state <= ReadMemoryDataGlobal;
-                    LoadSharedReg2: state <= ReadMemoryDataShared;
-                    LoadGlobalReg2: state <= ReadMemoryDataGlobal;
+                    LoadSharedImmediate2: state <= ReadMemoryDataShared; //addition for address then placed in MAR
+                    LoadGlobalImmediate2: state <= ReadMemoryDataGlobal; //addition for address then placed in MAR
+                    LoadSharedReg2: state <= ReadMemoryDataShared; //addition for address then placed in MAR
+                    LoadGlobalReg2: state <= ReadMemoryDataGlobal; //addition for address then placed in MAR
                     
-                    StoreMemoryDataShared: state <= WriteMemoryDataShared;
-                    StoreMemoryDataGlobal: state <= WriteMemoryDataGlobal;
+                    StoreMemoryDataShared: state <= WriteMemoryDataShared; //send the data we are writing to MDR
+                    StoreMemoryDataGlobal: state <= WriteMemoryDataGlobal; //send the data we are writing to MDR
                     
-                    StoreSharedImmediate1: state <= StoreSharedImmediate2;
-                    StoreSharedReg1: state <= StoreSharedReg2;
-                    StoreGlobalImmediate1: state <= StoreGlobalImmediate2;
-                    StoreGlobalReg1: state <= StoreGlobalReg2;
+                    StoreSharedImmediate1: state <= StoreSharedImmediate2; //First state to activate register file
+                    StoreSharedReg1: state <= StoreSharedReg2; //First state to activate register file
+                    StoreGlobalImmediate1: state <= StoreGlobalImmediate2; //First state to activate register file
+                    StoreGlobalReg1: state <= StoreGlobalReg2; //First state to activate register file
                     
-                    StoreSharedImmediate2: state <= StoreMemoryDataShared;
-                    StoreSharedReg2: state <= StoreMemoryDataShared;
-                    StoreGlobalImmediate2: state <= StoreMemoryDataGlobal;
-                    StoreGlobalReg2: state <= StoreMemoryDataGlobal;
+                    StoreSharedImmediate2: state <= StoreMemoryDataShared; //addition for address then placed in MAR
+                    StoreSharedReg2: state <= StoreMemoryDataShared; //addition for address then placed in MAR
+                    StoreGlobalImmediate2: state <= StoreMemoryDataGlobal; //addition for address then placed in MAR
+                    StoreGlobalReg2: state <= StoreMemoryDataGlobal; //addition for address then placed in MAR
                     
-                    ReadMemoryDataShared: state <= (finishedReadMemoryDataShared) ? StoreReadMemoryData : ReadMemoryDataShared;
-                    ReadMemoryDataGlobal: state <= (finishedReadMemoryDataGlobal) ? StoreReadMemoryData : ReadMemoryDataGlobal;
-                    StoreReadMemoryData: state <= Decode;
-                    WriteMemoryDataGlobal: state <= (finishedWriteMemoryDataGlobal) ? Decode : WriteMemoryDataGlobal;
-                    WriteMemoryDataShared: state <= (finishedWriteMemoryDataShared) ? Decode : WriteMemoryDataShared;
-                    Decode: state <= Decode;
+                    ReadMemoryDataShared: state <= (finishedReadMemoryDataShared) ? StoreReadMemoryData : ReadMemoryDataShared; //Wait for memory read to finish
+                    ReadMemoryDataGlobal: state <= (finishedReadMemoryDataGlobal) ? StoreReadMemoryData : ReadMemoryDataGlobal; //Wait for memory read to finish
+                    StoreReadMemoryData: state <= Decode; //Once memory data has been retrieved, store the data in the regFile
+                    WriteMemoryDataGlobal: state <= (finishedWriteMemoryDataGlobal) ? Decode : WriteMemoryDataGlobal; //Wait for  memory to finish writing data
+                    WriteMemoryDataShared: state <= (finishedWriteMemoryDataShared) ? Decode : WriteMemoryDataShared; //Wait for  memory to finish writing data
+                    Decode: state <= Decode; //Decode will stay in Decode if no new instructions are sent
                     default: state <= Bad; //this should never happen
                 endcase
             end
 
             //For the Countdown
-            if(skipLines && (state == CompareImmediate2 || state == CompareDual2)) begin
-                countdown <= IR[24:19];
+            if(skipLines && (state == CompareImmediate2 || state == CompareDual2)) begin //skipLines signals that a comparison is true
+                countdown <= IR[24:19]; //Store number of instructions to skip 
             end
             else begin
-                if(executeInstruction && countdownOn) begin
-                    countdown <= countdown - 1;
+                if(executeInstruction && countdownOn) begin //if a new instruction has been sent and the core has been turned off
+                    countdown <= countdown - 1; //decrement the counter
                 end
                 else begin
-                    countdown <= countdown;
+                    countdown <= countdown; //if the counter equals zero or a new instruction hasn't been sent, freeze the countdown
                 end
             end
 
