@@ -27,11 +27,11 @@ module instructionBuffer(
 
         //instruction buffer logic
         if(reset) begin
-            instructions[31] <= 0;
+            instructions[31] <= 0; //reset instructions[31] to 0
         end
         for(i = 0; i<31; i+=1) begin
             if(reset) begin
-                instructions[i] <= 0;
+                instructions[i] <= 0; //reset all the other instructions to 0
             end
             else begin
                 if(i != counter && coresReadyToSend) begin //if the cores are ready and a new instruction is ready, shift down except for the counter
@@ -66,13 +66,13 @@ module instructionBuffer(
         end       
         
         if(reset) begin //InstructionOut is now a register.
-            instructionOut <= 32'hAAAAAAAA;
+            instructionOut <= 32'hAAAAAAAA; //instructionOut just resets to an identifiable value
         end
         else if(coresReadyToSend && !sentInstruction && counter != 0) begin
-            instructionOut <= instructions[0];
-        end
+            instructionOut <= instructions[0]; //if there are instructions in the buffer and cores are ready to send and you didn't just send an instruction
+        end //send an instruction to the output
         else if(coresReadyToSend && !sentInstruction && newInstruction) begin
-            instructionOut <= instructionIn;
+            instructionOut <= instructionIn; //If there is a brand new instruction and the buffer is empty, push the new instruction out immediately
         end
         
         
@@ -81,8 +81,6 @@ module instructionBuffer(
         counterUp = counter + 1;
         counterDown = counter - 1;
         bufferFill = counter;
-        coresReadyToSend = (sentInstruction) ? 1'b0 : coresReady;
-        
-        
+        coresReadyToSend = (sentInstruction) ? 1'b0 : coresReady; //coresReadyToSend should never be active over 50% of the time
     end
 endmodule
