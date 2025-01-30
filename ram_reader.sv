@@ -61,27 +61,27 @@ module ram_reader(
         end 
         else begin
             if(alexMemEnable == 2'b01 && ~alexFinishedAction) begin
-                counter <= counter + 1;
+                counter <= counter + 1; //increase the counter every time a read is being operated on but no response has been received
             end
             else begin
-                counter <= 0;
+                counter <= 0; //reset the counter when not reading or when a response has been received
             end
             
             case(writeState)
                 3'b000: writeState <= (alexNewCommand && alexMemEnable == 2'b10 && ram_rdy) ? 3'b001: 3'b000;
-                3'b001: writeState <= (ram_rdy) ? 3'b010 : 3'b001;
-                3'b010: writeState <= (ram_wdf_rdy) ? 3'b011 : 3'b010;
+                3'b001: writeState <= (ram_rdy) ? 3'b010 : 3'b001; //ram_rdy needs to be high to send cmd
+                3'b010: writeState <= (ram_wdf_rdy) ? 3'b011 : 3'b010; //ram_wdf_rdy always seems high, but just for safety
                 3'b011: writeState <= (ram_wdf_rdy) ? 3'b100 : 3'b011;
                 3'b100: writeState <= 3'b000;
             endcase       
             case(readState)
                 2'b00: readState <= (alexNewCommand && alexMemEnable == 2'b01 && ram_rdy) ? 2'b01 : 2'b00;
-                2'b01: readState <= (ram_rdy && ram_rdy_old) ? 2'b10 : 2'b01;
+                2'b01: readState <= (ram_rdy && ram_rdy_old) ? 2'b10 : 2'b01; //make sure ram_rdy has been high for at least 2 cycles
                 2'b10: readState <= 2'b11;
                 2'b11: readState <= 2'b00;
             endcase
             // Handle reads
-            if(alexMemEnable == 2'b00) begin
+            if(alexMemEnable == 2'b00) begin //when idle, reset everything
                 alexFinishedCommand <= 0;
                 alexFinishedAction <= 0;
                 readState <= 2'b00;
@@ -89,19 +89,19 @@ module ram_reader(
             end
             else if (alexMemEnable == 2'b01) begin //This signifies a read
                 if(ram_rdy && alexNewCommand && readState == 2'b00) begin
-                    ram_cmd <= 3'b001;
-                    ram_address <= {alexAddress[26:3], 3'b000};
-                    alexFinishedCommand <= 1;
+                    ram_cmd <= 3'b001; //001 means read
+                    ram_address <= {alexAddress[26:3], 3'b000}; //save address
+                    alexFinishedCommand <= 1; //tell the cache the read command has been sent
                 end
                 else begin
                     alexFinishedCommand <= 0;
                 end               
                 
                 if((ram_rd_valid_old && ram_rd_data_end && ~ram_rd_data_end_old && ~alexFinishedAction) || (&counter)) begin
-                    data_burst[63:0] <= ram_rd_data;
-                    alexFinishedAction <= 1;
+                    data_burst[63:0] <= ram_rd_data; //save the low bits of the data
+                    alexFinishedAction <= 1; //signal to memoryController that the data has been received
                 end
-                else if(ram_rd_valid) begin
+                else if(ram_rd_valid) begin //signals only the top half of the data is ready
                     data_burst[127:64] <= ram_rd_data;     
                     alexFinishedAction <= 0;          
                 end
@@ -110,25 +110,25 @@ module ram_reader(
                 end
             end
             else if (alexMemEnable == 2'b10) begin //This is going to be writes.
-                if(writeState == 3'b000 && alexNewCommand && ram_rdy) begin
-                    ram_cmd <= 3'b000;
-                    ram_address <= {alexAddress[26:3], 3'b000};
+                if(writeState == 3'b000 && alexNewCommand && ram_rdy) begin 
+                    ram_cmd <= 3'b000; //signals a write command
+                    ram_address <= {alexAddress[26:3], 3'b000}; //send address
                     alexFinishedCommand <= 0;
                     alexFinishedAction <= 0;
                 end
                 else if (writeState == 3'b001) begin
-                    ram_wdf_data <= alexWriteData[127:64];
+                    ram_wdf_data <= alexWriteData[127:64]; //send the top half of the data
                 end
-                else if (writeState == 3'b010 && ram_wdf_rdy) begin
+                else if (writeState == 3'b010 && ram_wdf_rdy) begin //send the bottom half of the data when ready
                     ram_wdf_data <= alexWriteData[63:0];
                     alexFinishedAction <= 0;
                     alexFinishedCommand <= 0;
                 end
-                else if (writeState == 3'b011) begin
+                else if (writeState == 3'b011) begin //next, tell the memory Controller that the data is finished writing
                     alexFinishedAction <= 1;
                     alexFinishedCommand <= 1;                
                 end
-                else if (writeState == 3'b100) begin
+                else if (writeState == 3'b100) begin //bring back low all of the signals
                     alexFinishedAction <= 0;
                     alexFinishedCommand <= 0;        
                 end
@@ -136,11 +136,12 @@ module ram_reader(
         end
     end
     always_comb begin    
+        //concatenate the mask. The mask allows writing individual bytes, but I only allow writing whole words. 8 bytes are communicated in a cycle.
         ram_wdf_mask = ( writeState == 3'b011) ? {{4{alexWriteBytes[3]}}, {4{alexWriteBytes[1]}}} : {{4{alexWriteBytes[7]}}, {4{alexWriteBytes[5]}}};
-        ram_en = (readState == 2'b01 && ram_rdy && ram_rdy_old) || (writeState == 3'b001);
-        ram_wdf_end = writeState == 3'b011;
-        ram_wdf_wren = writeState == 3'b010 || writeState == 3'b011;
-        alexMemReady[0] = ram_rdy;
+        ram_en = (readState == 2'b01 && ram_rdy && ram_rdy_old) || (writeState == 3'b001); //keep ram_en combinational to respond to ram_rdy
+        ram_wdf_end = writeState == 3'b011; //ram_wdf_end is high for only one writeState
+        ram_wdf_wren = writeState == 3'b010 || writeState == 3'b011; //ram_wdf_end is high for two writeStates
+        alexMemReady[0] = ram_rdy; //all of the below are debug signals
         alexMemReady[1] = ram_wdf_wren;
         alexMemReady[2] = ram_wdf_end;
         alexMemReady[3] = ram_en;
