@@ -58,7 +58,7 @@ module memoryController(
         sendCore,
         waitCore,
         receiveCore
-    } memControllerState;
+    } memControllerState; //These are the different values that the state of the controller can take on
 
     memControllerState curState;
     always_ff @(posedge clk) begin
@@ -86,8 +86,8 @@ module memoryController(
             
         end
         else begin
-            oldAlexFinishedMemAction <= alexFinishedMemAction;
-            oldAlexCommandAcknowledged <= alexCommandAcknowledged;
+            oldAlexFinishedMemAction <= alexFinishedMemAction; //tracks the previous value of alexFinishedMemAction
+            oldAlexCommandAcknowledged <= alexCommandAcknowledged; //tracks the previous value of alexCommandAcknowledged
             rowColIndexReg <= rowColIndexWire;
             usedToBeIdle <= curState == Idle;
             case(curState)
@@ -110,93 +110,89 @@ module memoryController(
             end
             else if(curState == readVGA) begin
                 
-                alexMemEnable <= 2'b01;
-                alexNewCommand <= 1;
-                if(alexCommandAcknowledged) begin //I think that alexCommandAcknowledged needs to be low at least 50% of the time
-                    alexAddress <= {6'b000000, (wrappedRowColIndex[19:2] + readCounter), 3'b000};
-                    readCounter <= readCounter + 1;
+                alexMemEnable <= 2'b01; //signifies to ram_reader a read is occurring
+                alexNewCommand <= 1; //hold high that there is always a new command
+                if(alexCommandAcknowledged) begin
+                    alexAddress <= {6'b000000, (wrappedRowColIndex[19:2] + readCounter), 3'b000}; //increment the row-column index by the read counter
+                    readCounter <= readCounter + 1; //increment the readCounter each time a new command is acknowledged/received
                 end
                 
                 if(alexFinishedMemAction) begin
-                    copyReadData <= alexReadData;
+                    copyReadData <= alexReadData; //whenever a new read is completed, copy over the data to a register
                 end
-                if(usedToBeIdle) begin
-                    writeCounter <= 0;
-                    readCounter <= 10'b0000000001;
-                    alexAddress <= {6'b000000, (wrappedRowColIndex[19:2]), 3'b000};
+                if(usedToBeIdle) begin //The first time the state is in readVGA
+                    writeCounter <= 0; //reset the writeCounter
+                    readCounter <= 10'b0000000001; //set the readCounter
+                    alexAddress <= {6'b000000, (wrappedRowColIndex[19:2]), 3'b000}; //put the previous wrappedRowColIndex into the address
                 end               
                 else if(oldAlexFinishedMemAction) begin
-                    writeCounter <= writeCounter + 1;
+                    writeCounter <= writeCounter + 1; //increment the writeCounter every time a read has been finished
                 end
                 
             end
-            else if(curState == writeVGA) begin
-                alexNewCommand <= 0;
-                alexMemEnable <= 2'b01;
+            else if(curState == writeVGA) begin //once all of the reads have been sent, the last reads need to be received
+                alexNewCommand <= 0; //no more commands being sent
+                alexMemEnable <= 2'b01; //continue reading
                 if(alexFinishedMemAction) begin
-                    copyReadData <= alexReadData;
+                    copyReadData <= alexReadData; //copy the data if there is new data being received
                 end
                 if(oldAlexFinishedMemAction) begin
-                    writeCounter <= writeCounter + 1;
+                    writeCounter <= writeCounter + 1; //increment the writeCounter every time a read is completed
                 end
             end
             
-            else if (curState == sendCore) begin
-                if(cacheWriteEnableSave) begin
-                    alexMemEnable <= 2'b10;
-                    alexWriteBytes <= cacheWriteBytesSave;
-                    cacheFinishedAction <= alexCommandAcknowledged;
+            else if (curState == sendCore) begin //when the state is sending the commands from the cores
+                if(cacheWriteEnableSave) begin //if it is a write
+                    alexMemEnable <= 2'b10;  //signal writes
+                    alexWriteBytes <= cacheWriteBytesSave; //send the 32-bit write enable
+                    cacheFinishedAction <= alexCommandAcknowledged; //when the write is received, tell the cores
                 end
                 else begin
-                    alexMemEnable <= 2'b01;
-                    cacheFinishedAction <= 0;
+                    alexMemEnable <= 2'b01; //signal reads
+                    cacheFinishedAction <= 0; //wait until the DDR3 has the data to receive any data
                 end
-                alexNewCommand <= ~alexCommandAcknowledged;
-                alexAddress <= cacheAddressSave;
+                alexNewCommand <= ~alexCommandAcknowledged; //turn off alexNewCommand when the command is acknowledged
+                alexAddress <= cacheAddressSave; //send the address
             end
             else if (curState == waitCore) begin
                 alexNewCommand <= 0;
-                cacheDataRead <= alexReadData;
-                cacheFinishedAction <= alexFinishedMemAction;
+                cacheDataRead <= alexReadData; //load the data read
+                cacheFinishedAction <= alexFinishedMemAction; //when the read is received, tell the cores
             end
-            else if (curState == receiveCore) begin
-                alexNewCommand <= 0;
-                cacheFinishedAction <= 1;
+            else if (curState == receiveCore) begin //once the data has been received
+                alexNewCommand <= 0; //turn off that there is anew command
+                cacheFinishedAction <= 1; //because we are working with half the clock period of the cores, hold cacheFinishedAction high for 2 cycles
             end
             
             if(curState != readVGA && curState != writeVGA && rowColIndexReg[10:2] == 0 && ~vgaLoadWhenReady && drawY < 'd480 && drawX < 'd640) begin
-                vgaLoadWhenReady <= 1;
-                frozenRowColIndex  <= rowColIndexReg;
+                vgaLoadWhenReady <= 1; //On the 2048th iteration of the VGA, signal that it is ready to fetch new pixels from DDR3
+                frozenRowColIndex <= rowColIndexReg; //save the address at which to get new pixels from (plus 2048)
             end
             else if (curState == readVGA) begin
-                vgaLoadWhenReady <= 0;
+                vgaLoadWhenReady <= 0; //reset the vgaLoadWhenReady whenever the reading from the DDR3 actually begins
             end
             
             if(curState != sendCore && curState != receiveCore && curState != waitCore && cacheEnableGlobal) begin
-                cacheMemQueue <= 1;
-                cacheAddressSave <= cacheAddress;
-                if(~cacheWriteEnableSave) begin
+                cacheMemQueue <= 1; //Whenever the cores have a new command and a core command is not being administered to, save the data
+                cacheAddressSave <= cacheAddress; // save the address
+                if(~cacheWriteEnableSave) begin //Sometimes the writeEnableSave is overwritten due to the dual clocks, so Only measure the first one
                     cacheWriteEnableSave <= cacheEnableGlobalWrite;
                 end
-                cacheWriteDataSave <= cacheDataWrite;
+                cacheWriteDataSave <= cacheDataWrite; //save the write data
                 cacheWriteBytesSave <= cacheWriteBytes;
             end
-            else if (curState == receiveCore) begin
+            else if (curState == receiveCore) begin //If a request has been finished being administered to, clear the data
                 cacheMemQueue <= 0;
                 cacheWriteEnableSave <= 0;
             end
 
         end
-        pixel <= pixelsOut[{rowColIndexReg[1:0], 5'b00000} +: 32];
+        pixel <= pixelsOut[{rowColIndexReg[1:0], 5'b00000} +: 32]; //use a register to hold the data of a pixel
     end
     always_comb begin
-//        alexWriteData = cacheWriteDataSave;
-        alexWriteData = cacheDataWrite;
-        aheadAddress = frozenRowColIndex + 'd2048;//this should normally be 2048
-        wrappedRowColIndex = (aheadAddress >= 'd307200) ? aheadAddress - 'd307200 : aheadAddress;
-//        red = (rowColIndexReg[11:2] == 0) ? 8'hFF : pixel[31:24];
-//        green = (rowColIndexReg[10:2] == 0) ? 8'hFF : pixel[23:16];
-//        blue = (rowColIndexReg [11:2] == 0) ? 8'hFF : pixel[15:8];
+        alexWriteData = cacheDataWrite; // the data actually doesn't change from the cache (held in register), so doesn't matter
+        aheadAddress = frozenRowColIndex + 'd2048; //this is the address with which to use a double buffer to get pixels in advance of need
+        wrappedRowColIndex = (aheadAddress >= 'd307200) ? aheadAddress - 'd307200 : aheadAddress; //wrap around the end of the frame buffer
         red = pixel[31:24];
         green = pixel[23:16];
         blue = pixel[15:8];
@@ -207,7 +203,7 @@ module memoryController(
         for(i = 0; i<4; i+=1) begin
             blk_mem_gen_0 u_blk_mem_gen_0 (
                 .clka   (clk),       // Clock for port A
-                .ena    (oldAlexFinishedMemAction && (curState == readVGA || curState == writeVGA)),      // Enable for port A
+                .ena    (oldAlexFinishedMemAction && (curState == readVGA || curState == writeVGA)), //whenever a read has been completed for a pixel
                 .wea    (1'b1),
                 .addra  ({~frozenRowColIndex[11], writeCounter[8:0]}), // Address for port A
                 .dina   (copyReadData[i*32 +: 32]),   
@@ -216,7 +212,7 @@ module memoryController(
                 .clkb   (clk),       // Clock for port B
                 .enb    (1'b1),      // Enable for port B
 //                .web    (1'b0),      // Port B is read-only
-                .addrb  (rowColIndexReg[11:2]), // Address for port B 
+                .addrb  (rowColIndexReg[11:2]), // Simply read the current pixel address
 //                .dinb   (32'b0),     // No input needed for read-only port B
                 .doutb  (pixelsOut[i*32 +: 32])   // Data output for port B
             );
