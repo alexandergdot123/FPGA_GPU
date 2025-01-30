@@ -46,42 +46,41 @@ package gpuCoreTypes;
     
     typedef enum {
         Idle, 
-        adjacentCheckRead,
-        adjacentCheckWrite,
+        adjacentCheckRead, //check adjacency
+        adjacentCheckWrite, //check adjacency
 
         adjacentReadOffAxisFirstLoadMasters,
         adjacentReadOffAxisFirstSearchHeader1,
-        adjacentReadOffAxisFirstSearchHeader2,
+        adjacentReadOffAxisFirstSearchHeader2,//unused
         adjacentReadOffAxisFirstCheckHit,
         adjacentReadOffAxisFirstCacheHitDistributeData,
         adjacentReadOffAxisFirstCacheMissGlobalRead1,
         adjacentReadOffAxisFirstCacheMissGlobalRead2,
-        adjacentReadOffAxisFirstCacheMissDistributeData, //in the case of a miss, write the data to cache
+        adjacentReadOffAxisFirstCacheMissDistributeData,
 
         adjacentReadRegularLoadMasters,
         adjacentReadRegularSearchHeader1,
-        adjacentReadRegularSearchHeader2,
+        adjacentReadRegularSearchHeader2,//unused
         adjacentReadRegularCheckHit,
         adjacentReadRegularCacheHitDistributeData,
         adjacentReadRegularCacheMissGlobalRead1,
         adjacentReadRegularCacheMissGlobalRead2,
-        adjacentReadRegularCacheMissDistributeData, //in the case of a miss, write the data to cache
-        //I may need more states to accommodate the last non-filled read if there was an off axis read. I don't think so though.
+        adjacentReadRegularCacheMissDistributeData,
 
         nonAdjacentReadLoadMasters,
         nonAdjacentReadSearchHeader1,
-        nonAdjacentReadSearchHeader2,
+        nonAdjacentReadSearchHeader2,//unused
         nonAdjacentReadCheckHit,
         nonAdjacentReadCacheHitDistributeData,
         nonAdjacentReadCacheMissGlobalRead1,
         nonAdjacentReadCacheMissGlobalRead2,
-        nonAdjacentReadCacheMissDistributeData,//I need to do this 32 times.
+        nonAdjacentReadCacheMissDistributeData,//I need to do this 24 times.
 
         //Now for writes
         adjacentWriteOffAxisFirstLoadMasters,
-        adjacentWriteOffAxisFirstSearchHeader,//also write to global here too.
+        adjacentWriteOffAxisFirstSearchHeader,
         adjacentWriteOffAxisFirstCheckHit,
-        adjacentWriteOffAxisFirstPartialWrite,//and here, write to only PART of the data Bram if it hit. Otherwise don't update cache
+        adjacentWriteOffAxisFirstPartialWrite,
         adjacentWriteOffAxisFirstOnlyGlobal,
         adjacentWriteOffAxisFirstGlobalWait,
         
@@ -102,13 +101,13 @@ package gpuCoreTypes;
         
         
         adjacentWriteOffAxisLastLoadMasters,
-        adjacentWriteOffAxisLastSearchHeader,//also write to global here too.
+        adjacentWriteOffAxisLastSearchHeader,
         adjacentWriteOffAxisLastCheckHit,
-        adjacentWriteOffAxisLastPartialWrite,//and here, write to only PART of the data Bram if it hit. Otherwise don't update cache
+        adjacentWriteOffAxisLastPartialWrite,
         adjacentWriteOffAxisLastOnlyGlobal,
         adjacentWriteOffAxisLastGlobalWait,
     
-        nonAdjacentWriteLoadMasters, //I'm going to need to do this 32 times. So likely 32*5=160 cycles.
+        nonAdjacentWriteLoadMasters,
         nonAdjacentWriteSearchHeader1,
         nonAdjacentWriteCheckHit,
         nonAdjacentWritePartialWrite,
